@@ -1,9 +1,9 @@
-/* Simpan fail apps dalam telefon supaya boleh buka tanpa internet.
-   Papar dari simpanan dulu (laju), kemudian ambil versi baru di belakang tabir.
-   Jadi bila fail di GitHub dikemas kini, perubahan nampak pada bukaan seterusnya. */
+/* Simpan fail apps supaya boleh buka tanpa internet.
+   Ambil dari internet dulu (selalu semak versi terbaru di GitHub), dan guna simpanan
+   hanya bila tiada internet. Dengan cara ini perubahan nampak sebaik sahaja refresh. */
 // Apps lain di alamat github.io yang sama ada simpanan sendiri; hanya urus yang bermula dengan awalan ini.
 const AWALAN = 'diecast-';
-const CACHE = AWALAN + 'v8';
+const CACHE = AWALAN + 'v9';
 const FAIL = [
   './',
   'index.html',
@@ -17,7 +17,12 @@ const FAIL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FAIL)).then(() => self.skipWaiting()));
+  // cache: 'reload' supaya tak ambil salinan lama dari cache browser.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.all(FAIL.map((f) => fetch(f, { cache: 'reload' }).then((r) => (r.ok ? c.put(f, r) : null)).catch(() => null))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -30,21 +35,20 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-  // Hanya fail dalam folder apps ini.
-  if (!new URL(req.url).pathname.startsWith(new URL('./', self.location).pathname)) return;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  if (!url.pathname.startsWith(new URL('./', self.location).pathname)) return;
 
-  e.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const tersimpan = await cache.match(req, { ignoreSearch: true });
-      const rangkaian = fetch(req)
-        .then((res) => {
-          if (res && res.ok) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => null);
-      if (tersimpan) { e.waitUntil(rangkaian); return tersimpan; }
-      return (await rangkaian) || (await cache.match('index.html')) || Response.error();
-    })
-  );
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    try {
+      // 'no-cache': tanya GitHub sama ada fail berubah (laju bila tak berubah).
+      const res = await fetch(req, { cache: 'no-cache' });
+      if (res && res.ok) cache.put(req, res.clone());
+      return res;
+    } catch (err) {
+      return (await cache.match(req, { ignoreSearch: true })) || (await cache.match('index.html')) || Response.error();
+    }
+  })());
 });
