@@ -167,7 +167,7 @@
       akaun: String(x.akaun || '').trim().slice(0, 40),
       tBeli: Number(x.tBeli) || Date.now(),
       mata,
-      kadar: mata === 'RM' ? 1 : nomborAtauNull(x.kadar),
+      kadar: mata === 'RM' ? 1 : (nomborAtauNull(x.kadar) === null ? null : Math.round(Number(x.kadar) * 10000) / 10000),
       ship: nomborAtauNull(x.ship) || 0,         // shipping + tax order, dalam mata wang order
       catatan: String(x.catatan || '').slice(0, 300),
       dibuat: Number(x.dibuat) || Date.now(),
@@ -246,7 +246,7 @@
       kotak: (Array.isArray(j.kotak) ? j.kotak : []).map(bersihKotak).filter(Boolean),
       hantar: (Array.isArray(j.hantar) ? j.hantar : []).map(bersihHantar).filter(Boolean),
       bank: String(j.bank || '').slice(0, 300),
-      kadar: nomborAtauNull(j.kadar),
+      kadar: nomborAtauNull(j.kadar) === null ? null : Math.round(Number(j.kadar) * 10000) / 10000,
     };
     return d;
   }
@@ -922,7 +922,7 @@
     return '<div class="dua"><label class="medan kecil">Mata wang<select name="mata"><option value="USD"' + (mata === 'USD' ? ' selected' : '') + '>USD</option>' +
       '<option value="RM"' + (mata === 'RM' ? ' selected' : '') + '>RM</option></select></label>' +
       '<label class="medan" data-kadar>Kadar (RM per US$)<input name="kadar" type="number" inputmode="decimal" min="0" step="0.0001" placeholder="contoh 4.25" value="' +
-      esc(o ? (o.mata === 'USD' && o.kadar ? o.kadar : '') : (data.kadar || '')) + '"></label></div>' +
+      esc(o ? (o.mata === 'USD' && o.kadar ? o.kadar : '') : (data.kadar >= 2 && data.kadar <= 10 ? data.kadar : '')) + '"></label></div>' +
       '<label class="medan"><span data-label-ship>Shipping + tax order (US$)</span><input name="ship" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(o && o.ship ? o.ship : '') + '"></label>' +
       '<label class="medan" data-kadar>Atau: jumlah dicaj kad (RM) <small>(pilihan · app kira kadar sendiri)</small><input name="caj" type="number" inputmode="decimal" min="0" step="0.01"></label>';
   }
@@ -936,6 +936,19 @@
   }
 
   // Kira kadar: dari jumlah dicaj kad kalau diisi.
+  // Kadar USD->RM yang munasabah. Di luar julat ini hampir pasti tersalah isi
+  // (contoh: jumlah RM ditaip dalam medan kadar, atau harga beli item belum diisi).
+  function semakKadar(f, kadar, jumlahAsal) {
+    if (f.mata.value !== 'USD' || kadar === null) return '';
+    if (kadar >= 2 && kadar <= 10) return '';
+    const caj = nomborAtauNull(f.caj.value);
+    if (caj) {
+      return 'Kadar dikira ' + kadar + ' (RM' + caj + ' ÷ US$' + bulat(jumlahAsal) + '), tak munasabah. ' +
+        'Pastikan harga beli semua item dan shipping dah diisi, atau kosongkan "jumlah dicaj kad" dan taip kadar terus (contoh 4.25).';
+    }
+    return 'Kadar ' + kadar + ' tak munasabah. Kadar ialah berapa RM untuk US$1 (contoh 4.25), bukan jumlah RM.';
+  }
+
   function kiraKadar(f, jumlahAsal) {
     if (f.mata.value === 'RM') return 1;
     const caj = nomborAtauNull(f.caj.value);
@@ -964,6 +977,8 @@
         if (tiadaOrang) return 'Isi kastemer untuk ' + tiadaOrang.nama + ' (taip AKU untuk barang sendiri).';
         const asal = baris.reduce((j, b) => j + (Number(b.beli) || 0) * (parseInt(b.qty, 10) || 1), 0) + (Number(f.ship.value) || 0);
         const kadar = kiraKadar(f, asal);
+        const salah = semakKadar(f, kadar, asal);
+        if (salah) return salah;
         const o = bersihOrder({
           id: idBaru(), kedai: f.kedai.value, no: f.no.value, akaun: f.akaun.value, tBeli: dariInput(f.tBeli.value),
           mata: f.mata.value, kadar, ship: f.ship.value, dibuat: Date.now(),
@@ -977,7 +992,7 @@
               harga: aku ? 0 : b.harga, beli: b.beli, orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
             }));
           });
-          if (o.mata === 'USD' && o.kadar) data.kadar = o.kadar;
+          if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
           if (o.akaun) { tetapan.akaun = o.akaun; }
           tetapan.tab = 'beli';
           simpanTetapan();
@@ -997,7 +1012,9 @@
     const ship = Number(f.ship.value) || 0;
     const kadar = kiraKadar(f, beli + ship);
     let t = baris.length + ' item · beli ' + wang(beli, s) + (ship ? ' + shipping ' + wang(ship, s) : '');
-    if (kadar && f.mata.value === 'USD') t += ' = ' + rm((beli + ship) * kadar) + ' (kadar ' + kadar + ')';
+    if (kadar && f.mata.value === 'USD') t += ' = ' + rm((beli + ship) * kadar) + ' (US$1 = RM' + kadar + ')';
+    const amaran = semakKadar(f, kadar, beli + ship);
+    if (amaran) t += '. ⚠ ' + amaran;
     if (jual) t += ' · jual ' + rm(jual);
     el.textContent = t;
   }
@@ -1064,7 +1081,7 @@
       '<div><span>Harga barang</span><b>' + wang(asal, s) + '</b></div>' +
       '<div><span>Shipping + tax</span><b>' + wang(o.ship, s) + '</b></div>' +
       '<div><span>Jumlah</span><b>' + wang(asal + o.ship, s) + (o.mata === 'USD' && o.kadar ? ' = ' + rm((asal + o.ship) * o.kadar) : '') + '</b></div>' +
-      (o.mata === 'USD' ? '<div><span>Kadar</span><b>' + (o.kadar ? 'RM' + o.kadar + ' / US$' : '<span class="tag-amaran">Belum diisi</span>') + '</b></div>' : '') +
+      (o.mata === 'USD' ? '<div><span>Kadar</span><b>' + (o.kadar ? 'US$1 = RM' + o.kadar + (o.kadar < 2 || o.kadar > 10 ? ' <span class="tag-amaran">Salah? Edit order</span>' : '') : '<span class="tag-amaran">Belum diisi</span>') + '</b></div>' : '') +
       '</div>';
     if (tiadaBeli) html += '<p class="nota">' + tiadaBeli + ' item belum ada harga beli. Ketuk item dan Edit untuk isi.</p>';
     html += '<p class="nota">Shipping dibahagi ikut harga beli setiap item.</p>';
@@ -1109,17 +1126,31 @@
         '<div class="dua">' + medanTeks('no', 'No. order', o.no, ' maxlength="40"') + medanTarikh('tBeli', 'Tarikh beli', o.tBeli, true) + '</div>' +
         medanKadar(o) +
         '<label class="medan">Catatan <small>(pilihan)</small><textarea name="catatan" rows="2" maxlength="300">' + esc(o.catatan) + '</textarea></label>' +
-        '<p class="nota">Harga beli setiap item diubah dari skrin item (Edit).</p>',
-      lepas: gunaMata,
+        '<p class="nota" id="jumlahEdit"></p><p class="nota">Harga beli setiap item diubah dari skrin item (Edit).</p>',
+      lepas: (f) => {
+        gunaMata(f);
+        const asal = itemOrder(o).reduce((j, it) => j + (beliAsal(it) || 0), 0);
+        const segar = () => {
+          const ship = Number(f.ship.value) || 0;
+          const kadar = kiraKadar(f, asal + ship);
+          f.querySelector('#jumlahEdit').textContent = f.mata.value !== 'USD' ? '' :
+            'US$' + bulat(asal + ship) + (kadar ? ' = ' + rm((asal + ship) * kadar) + ' (US$1 = RM' + kadar + ')' : '') +
+            (semakKadar(f, kadar, asal + ship) ? '. ⚠ ' + semakKadar(f, kadar, asal + ship) : '');
+        };
+        f.querySelectorAll('input, select').forEach((el) => el.addEventListener('input', segar));
+        segar();
+      },
       hantar(f) {
         const asal = itemOrder(o).reduce((j, it) => j + (beliAsal(it) || 0), 0) + (Number(f.ship.value) || 0);
         const kadar = kiraKadar(f, asal);
+        const salah = semakKadar(f, kadar, asal);
+        if (salah) return salah;
         ubah(() => {
           Object.assign(o, bersihOrder(Object.assign({}, o, {
             kedai: f.kedai.value, akaun: f.akaun.value, no: f.no.value, tBeli: dariInput(f.tBeli.value),
             mata: f.mata.value, kadar, ship: f.ship.value, catatan: f.catatan.value.trim(),
           })));
-          if (o.mata === 'USD' && o.kadar) data.kadar = o.kadar;
+          if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
         }, 'Order disimpan.');
         return '';
       },
