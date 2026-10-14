@@ -4,59 +4,48 @@ Apps untuk jejak barang pre-order diecast: barang personal, barang kastemer yang
 
 Developed by FaridAssamani.
 
-## Kategori
+## Flow kerja
 
-- **Personal**: barang aku order untuk diri sendiri (dari Mattel Creations, atau dari orang lain macam Enal).
-- **OTW**: barang kastemer yang dah ship, dalam perjalanan ke Malaysia.
-- **Belum Ship**: barang kastemer yang dah beli tapi belum ship.
-- **Order**: order Mattel dan kotak Buyandship, ikut peringkat.
-- **Arkib**: barang yang dah diserah pada kastemer (atau dah sampai untuk personal).
+Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa parcel.
 
-## Order dan Kotak (tab Order)
+| Tab | Peringkat | Apa yang kau tekan |
+|---|---|---|
+| **Belum Ship** | Dah order, belum ship ke hub | **Order baru**: kedai, no. order, akaun, mata wang, kadar, shipping + tax, dan senarai item (item, harga beli seunit, kastemer, harga jual). *Salin baris* untuk item sama yang dijual pada ramai kastemer. Taip `AKU` untuk barang sendiri. |
+| **OTW** | Ke hub → di hub → kotak → dipost ke MY | **Declare** (tanda item dalam satu parcel, tampal tracking US) → **Sampai hub** → **Consolidate** (kos posting BNS) → **Isi Skynet** → **Sampai MY** |
+| **Sampai** | Dah sampai, sorting ikut kastemer | **WhatsApp baki**, kemudian **Serah**: Post J&T (tracking + kos J&T) atau Hantar sendiri. Barang `AKU`: **Dah ambil**. |
+| **Hantar** | Tunggu kastemer sahkan | **Mesej** (tracking + baki), kemudian **Dah terima**. Item masuk Arkib. |
+| **Personal** | Barang aku beli dari orang lain (contoh Enal) | Tambah item, rekod bayaran aku, **Dah terima barang**. |
 
-Untuk jejak order Mattel Creations sampai ke Malaysia melalui Buyandship.
+Ikon kotak di atas buka **Arkib**. Ikon orang buka senarai kastemer dan baki setiap orang.
 
-1. **Order baru**: isi no. order (CHP…), akaun (fa.rawyadal / assamani83) dan tanda item mana dalam order itu.
-2. **Dah ship dari US**: satu tekan, tampal tracking kalau ada. Item kastemer dalam order itu pindah sendiri dari Belum Ship ke OTW.
-3. **Declared** dan **Sampai hub**: tanda pilihan, tak wajib.
-4. **Masuk kotak**: bila consolidate di Buyandship, masukkan order ke satu kotak (atau buat kotak dari tab Order > **+ Kotak baru**).
-5. Dari skrin kotak: **Dah post ke MY** (tracking MY pilihan), kemudian **Dah sampai MY**. Semua order dan item dalam kotak ikut sekali.
+## Kos dan untung
 
-- Kad item tunjuk peringkat order dan bilangan hari sejak beli.
-- Dari skrin item, **Pair dengan order** untuk sambung item lama dengan order.
-- Order hilang dari senarai Aktif bila dah sampai MY dan semua itemnya diarkibkan (ada di tapisan **Selesai**).
-- Kos shipping kotak hanya direkod, tak dicaj pada kastemer.
-- Tarikh boleh dibetulkan melalui **Edit order** atau **Edit / urus order** dalam kotak.
+Kos sebenar setiap item:
+
+1. **Harga beli** seunit × qty × kadar tukaran order
+2. **Shipping + tax order**, dibahagi ikut harga beli setiap item
+3. **Kos posting BNS** kotak, dibahagi ikut (1 + 2)
+4. **Kos J&T** hantaran, dibahagi ikut (1 + 2)
+
+Untung = harga jual − kos sebenar. Laporan ikut bulan ada dalam tiga titik > **Untung rugi**.
+
+Kadar tukaran boleh diisi terus (RM per US$), atau isi jumlah yang dicaj kad (RM) dan app kira kadarnya.
+
+## Data dari versi lama
+
+Bila app dibuka, data lama ditukar sendiri tanpa dibuang:
+
+- Belum Ship lama → **Belum Ship** (kumpulan *Tanpa order*)
+- OTW lama → **OTW · dari Excel**. Masukkan ke kotak bila tahu.
+- Barang dari Enal → **Personal**
+- Barang CM untuk aku → **Belum Ship** sebagai `AKU`
 
 ## Warna status
 
-Dikira sendiri daripada harga dan jumlah bayaran:
-
 - **Hijau**: dah bayar penuh
-- **Kuning**: depo (dah bayar sebahagian)
+- **Kuning**: depo
 - **Oren**: belum bayar
-- **Kelabu**: harga belum diisi
-
-## Cara guna
-
-- Tekan item untuk buka butiran. Dari situ:
-  - **+ Bayaran**: rekod bayaran (jumlah, tarikh, nota). Guna nombor negatif untuk refund.
-  - **Bayar penuh**: rekod baki penuh sekali tekan.
-  - **WhatsApp minta baki**: buka WhatsApp dengan mesej baki siap ditulis.
-  - **Dah ship · pindah ke OTW**: untuk barang Belum Ship.
-  - **Arkibkan**: bila barang dah diserah. Item dalam Arkib boleh dipulihkan.
-  - **Edit** dan **Padam** (apps tanya dulu, dan ada **Buat asal**).
-  - Sejarah bayaran, dan butang X untuk buang bayaran yang tersilap.
-- Butang **Tambah item** di bawah kanan.
-- Ikon orang di atas: senarai kastemer dengan jumlah baki setiap orang, dan mesej WhatsApp minta baki untuk semua item dia sekali gus.
-- Kotak cari dan butang status untuk tapis senarai.
-
-## Tetapan (tiga titik)
-
-- **Paparan**: Ikut sistem, Terang atau Gelap.
-- **Maklumat bayaran**: ayat akaun bank yang dimasukkan di hujung mesej WhatsApp. Disimpan dalam peranti (dan Drive), bukan di GitHub.
-- **Selaras Google Drive**: guna data yang sama di phone dan PC.
-- **Simpan salinan** dan **Import fail**.
+- **Biru (Aku)**: barang sendiri
 
 ## Fail dalam repo ini
 

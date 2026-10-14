@@ -53,6 +53,9 @@ try {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.5 4.5 0 0 0 7 18z"/></svg>
         <span id="selarasTeks"></span>
       </button>
+      <button class="ikon-btn" id="btnArkib" type="button" aria-label="Arkib" title="Arkib">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>
+      </button>
       <button class="ikon-btn" id="btnKastemer" type="button" aria-label="Senarai kastemer" title="Kastemer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.4 3.4 0 0 1 0 6.4"/><path d="M18.2 14.8c1.8.7 3 2.4 3.3 5.2"/></svg>
       </button>
@@ -64,13 +67,17 @@ try {
       </button>
     </header>
 
-    <nav class="tab" id="tab" role="tablist" aria-label="Kategori">
-      <button type="button" role="tab" data-kat="personal">Personal <span class="kira" data-kira="personal"></span></button>
+    <nav class="tab" id="tab" role="tablist" aria-label="Peringkat">
+      <button type="button" role="tab" data-kat="beli">Belum Ship <span class="kira" data-kira="beli"></span></button>
       <button type="button" role="tab" data-kat="otw">OTW <span class="kira" data-kira="otw"></span></button>
-      <button type="button" role="tab" data-kat="tunggu">Belum Ship <span class="kira" data-kira="tunggu"></span></button>
-      <button type="button" role="tab" data-kat="order">Order <span class="kira" data-kira="order"></span></button>
-      <button type="button" role="tab" data-kat="arkib">Arkib <span class="kira" data-kira="arkib"></span></button>
+      <button type="button" role="tab" data-kat="sampai">Sampai <span class="kira" data-kira="sampai"></span></button>
+      <button type="button" role="tab" data-kat="hantar">Hantar <span class="kira" data-kira="hantar"></span></button>
+      <button type="button" role="tab" data-kat="luar">Personal <span class="kira" data-kira="luar"></span></button>
     </nav>
+    <div class="tajuk-arkib" id="tajukArkib" hidden>
+      <button type="button" class="balik" id="btnKeluarArkib">‹ Kembali</button>
+      <b>Arkib</b><span>Barang yang dah selesai</span>
+    </div>
 
     <section class="ringkas" id="ringkas" aria-live="polite"></section>
 
@@ -88,10 +95,10 @@ try {
   <!-- Kali pertama: tiada data -->
   <section id="kosongMula" class="kosong-mula" hidden>
     <h2>Selamat datang</h2>
-    <p>Belum ada item. Masukkan senarai dari fail, ambil data dari Google Drive, atau mula tambah item sendiri.</p>
+    <p>Belum ada item. Masukkan senarai dari fail, ambil data dari Google Drive, atau mula dengan order baru.</p>
     <button class="btn utama" id="btnImportMula" type="button">Import senarai</button>
     <button class="btn" id="btnSambungMula" type="button">Ambil data dari Google Drive</button>
-    <button class="btn" id="btnTambahMula" type="button">Tambah item</button>
+    <button class="btn" id="btnTambahMula" type="button">Order baru</button>
   </section>
 
   <footer class="kaki">Developed by FaridAssamani</footer>
@@ -105,70 +112,6 @@ try {
 <!-- Butiran item -->
 <dialog id="dlgButir" class="helai">
   <div class="helai-isi" id="butirIsi"></div>
-</dialog>
-
-<!-- Tambah / edit item -->
-<dialog id="dlgBorang" class="helai">
-  <form id="borang" class="helai-isi" method="dialog" autocomplete="off">
-    <h2 id="borangTajuk">Tambah item</h2>
-
-    <fieldset class="pilih-kat">
-      <legend>Kategori</legend>
-      <label><input type="radio" name="kat" value="personal"><span>Personal</span></label>
-      <label><input type="radio" name="kat" value="otw"><span>OTW</span></label>
-      <label><input type="radio" name="kat" value="tunggu"><span>Belum Ship</span></label>
-    </fieldset>
-
-    <div class="dua">
-      <label class="medan kecil">Jenis
-        <input name="jenis" list="senaraiJenis" placeholder="HW, RLC…" maxlength="20">
-      </label>
-      <label class="medan">Item
-        <input name="nama" required placeholder="Contoh: Skyline R32" maxlength="80">
-      </label>
-    </div>
-
-    <div class="dua">
-      <label class="medan kecil">Qty
-        <input name="qty" type="number" inputmode="numeric" min="1" step="1" value="1">
-      </label>
-      <label class="medan"><span id="labelOrang">Nama kastemer</span>
-        <input name="orang" list="senaraiOrang" required maxlength="60">
-      </label>
-    </div>
-
-    <label class="medan">Order Mattel <small>(pilihan · item kastemer ikut status order)</small>
-      <select name="orderId" id="pilihOrder"></select>
-    </label>
-
-    <label class="medan">No. telefon <small>(pilihan)</small>
-      <input name="tel" type="tel" inputmode="tel" placeholder="+60 12-345 6789" maxlength="30">
-    </label>
-
-    <div class="dua">
-      <label class="medan">Harga (RM)
-        <input name="harga" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
-      </label>
-      <label class="medan" id="medanModal">Modal (RM) <small>(pilihan)</small>
-        <input name="modal" type="number" inputmode="decimal" min="0" step="0.01">
-      </label>
-    </div>
-
-    <label class="medan" id="medanBayarAwal">Dah bayar (RM)
-      <input name="bayarAwal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
-    </label>
-
-    <label class="medan">Catatan <small>(pilihan)</small>
-      <textarea name="catatan" rows="2" maxlength="300"></textarea>
-    </label>
-
-    <p class="ralat" id="borangRalat" role="alert"></p>
-
-    <div class="aksi-bawah">
-      <button class="btn" type="button" id="borangBatal">Batal</button>
-      <button class="btn utama" type="submit" id="borangSimpan">Simpan</button>
-    </div>
-  </form>
 </dialog>
 
 <!-- Butiran order -->
@@ -209,6 +152,11 @@ try {
   </form>
 </dialog>
 
+<!-- Panel umum: untung rugi -->
+<dialog id="dlgPanel" class="helai">
+  <div class="helai-isi" id="panelIsi"></div>
+</dialog>
+
 <!-- Senarai kastemer -->
 <dialog id="dlgKastemer" class="helai">
   <div class="helai-isi" id="kastemerIsi"></div>
@@ -218,6 +166,11 @@ try {
 <dialog id="dlgMenu" class="helai">
   <div class="helai-isi">
     <h2>Tetapan</h2>
+
+    <h3>Bisnes</h3>
+    <div class="baris-btn">
+      <button class="btn" id="btnUntung" type="button">Untung rugi</button>
+    </div>
 
     <h3>Paparan</h3>
     <div class="segmen" id="segTema" role="group" aria-label="Paparan">
@@ -270,6 +223,7 @@ try {
 </datalist>
 <datalist id="senaraiOrang"></datalist>
 <datalist id="senaraiAkaun"><option value="fa.rawyadal"><option value="assamani83"></datalist>
+<datalist id="senaraiKedai"><option value="Mattel Creations"></datalist>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden>
   <span id="toastTeks"></span>
