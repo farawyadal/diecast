@@ -1239,3 +1239,24 @@ dialog::backdrop { background: var(--tirai); }
   .atas .ikon-btn { width: 38px; height: 40px; }
   .jenama h1 { font-size: 1.25rem; }
 }
+
+/* Butang undur satu peringkat pada kad */
+.kad-bungkus:has(.undur-kad) .kad { padding-right: 52px; }
+.undur-kad {
+  position: absolute;
+  z-index: 2;
+  right: 8px;
+  bottom: 8px;
+  width: 36px; height: 36px;
+  border: 1px solid var(--garis);
+  border-radius: 10px;
+  background: var(--permukaan);
+  color: var(--dakwat-2);
+  display: grid;
+  place-items: center;
+}
+.undur-kad:hover { color: var(--dakwat); background: var(--permukaan-2); }
+.undur-kad svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sedang-leret .undur-kad { visibility: hidden; }
+
+.segmen.dua-seg { grid-template-columns: 1fr 1fr; }

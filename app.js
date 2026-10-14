@@ -41,16 +41,23 @@
     beli: 'Tempahan', otw: 'Transit', sampai: 'Tiba', hantar: 'Penghantaran', luar: 'Peribadi', arkib: 'Arkib',
   };
   const PERINGKAT = {
-    beli: 'Belum ship', ship: 'Ke Oregon', hub: 'Gudang Oregon', keHK: 'Ke Hong Kong', hk: 'Gudang Hong Kong', kotak: 'Consolidate', post: 'Dipost ke MY',
-    sampai: 'Tiba di Malaysia', hantar: 'Dihantar', selesai: 'Selesai',
+    beli: 'Dalam tempahan', ship: 'Dalam perjalanan ke gudang Oregon', hub: 'Di gudang Oregon', keHK: 'Dalam perjalanan ke hub Hong Kong',
+    hk: 'Di hub Hong Kong', kotak: 'Disatukan (consolidate)', post: 'Dalam perjalanan ke Malaysia',
+    sampai: 'Tiba di Malaysia', hantar: 'Dalam penghantaran', selesai: 'Selesai',
   };
   const TAB_PERINGKAT = { beli: 'beli', ship: 'otw', hub: 'otw', keHK: 'otw', hk: 'otw', kotak: 'otw', post: 'otw', sampai: 'sampai', hantar: 'hantar', selesai: 'arkib' };
   const STATUS = { lunas: 'Lunas', depo: 'Deposit', belum: 'Belum bayar', tiada: 'Tiada harga' };
-  const BULAN = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+  // Bahasa paparan: dibaca sekali semasa buka. Tukar bahasa = muat semula halaman.
+  const BAHASA = (() => {
+    try { return JSON.parse(localStorage.getItem('diecast-tetapan') || '{}').bahasa === 'en' ? 'en' : 'ms'; } catch (e) { return 'ms'; }
+  })();
+  const BULAN = BAHASA === 'en'
+    ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    : ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const AKU = 'AKU';
 
   let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], bank: '', kadar: null };
-  let tetapan = { tema: 'sistem', tab: 'beli', status: 'semua', akaun: 'fa.rawyadal' };
+  let tetapan = { tema: 'sistem', tab: 'beli', status: 'semua', akaun: 'fa.rawyadal', bahasa: BAHASA };
   let cari = '';
 
   /* ---------- Alat kecil ---------- */
@@ -594,6 +601,8 @@
     const aku = it.kat === 'aku';
     const pil = aku ? '<span class="pil st-aku">Sendiri</span>' : '<span class="pil st-' + st + '">' + STATUS[st] + '</span>';
     let bawah = opt.peringkat === false ? '' : barisPeringkat(it);
+    const pk = peringkat(it);
+    const bolehUndur = opt.undur && ['ship', 'hub', 'keHK', 'hk', 'kotak', 'post', 'sampai', 'hantar'].includes(pk);
     if (it.arkib) bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + '</div>';
     else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
     const bolehLeret = !it.arkib;
@@ -604,7 +613,10 @@
       (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') + esc(it.nama) +
       (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</div>' + pil + '</div>' +
       (opt.orang && !aku ? '<div class="kad-orang">' + esc(it.orang || '-') + '</div>' : '') +
-      wangH + bawah + '</button></div>';
+      wangH + bawah + '</button>' +
+      (bolehUndur ? '<button type="button" class="undur-kad" data-undur="' + esc(it.id) + '" title="Undur satu peringkat" aria-label="Undur satu peringkat">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>' : '') +
+      '</div>';
   }
 
   /* ---------- Leret kad ---------- */
@@ -617,7 +629,7 @@
 
   $('senarai').addEventListener('pointerdown', (e) => {
     const b = e.target.closest('[data-leret]');
-    if (!b || e.button > 0 || e.target.closest('[data-g]')) return;
+    if (!b || e.button > 0 || e.target.closest('[data-g]') || e.target.closest('[data-undur]')) return;
     leret = { b, kad: b.querySelector('.kad'), x: e.clientX, y: e.clientY, dx: 0, aktif: false, id: e.pointerId };
   });
   $('senarai').addEventListener('pointermove', (e) => {
@@ -752,7 +764,7 @@
           sub: esc(labelKotak(k)) + (k.trackMY ? ' · Skynet ' + esc(k.trackMY) : '') + (k.tPost ? ' · ' + bilHari(k.tPost) + ' hari' : ''),
           buka: 'kotak:' + k.id,
           items: its,
-          kad: { orang: true, peringkat: false },
+          kad: { orang: true, peringkat: false, undur: true },
           aksi: [k.tPost ? { g: 'sampaiMY', nilai: k.id, label: 'Tiba di Malaysia', kelas: 'utama' } : { g: 'skynet', nilai: k.id, label: 'Tracking Skynet', kelas: 'utama' }],
         });
       });
@@ -760,11 +772,11 @@
       const kumpPeringkat = (p, tajuk, sub, aksi) => {
         const its = nampak.filter((it) => peringkat(it) === p);
         if (!its.length) return;
-        html += htmlKumpulan({ titik: p, tajuk, sub: its.length + ' item' + (sub ? ' · ' + sub : ''), items: its, kad: { orang: true }, aksi: aksi(its) });
+        html += htmlKumpulan({ titik: p, tajuk, sub: its.length + ' item' + (sub ? ' · ' + sub : ''), items: its, kad: { orang: true, undur: true }, aksi: aksi(its) });
       };
-      kumpPeringkat('hk', 'Gudang Hong Kong', 'sedia consolidate', () => [{ g: 'kotakBaru', nilai: 'hk', label: 'Consolidate', kelas: 'utama' }]);
-      kumpPeringkat('keHK', 'Oregon → Hong Kong', '', (its) => [{ g: 'hk', nilai: senaraiId(its), label: 'Tiba di HK', kelas: 'utama' }]);
-      kumpPeringkat('hub', 'Gudang Oregon', '', (its) => [{ g: 'keHK', nilai: senaraiId(its), label: 'Hantar ke HK' }, { g: 'hk', nilai: senaraiId(its), label: 'Tiba di HK' }]);
+      kumpPeringkat('hk', 'Hub Hong Kong', 'sedia consolidate', () => [{ g: 'kotakBaru', nilai: 'hk', label: 'Consolidate', kelas: 'utama' }]);
+      kumpPeringkat('keHK', 'Gudang Oregon → Hub Hong Kong', '', (its) => [{ g: 'hk', nilai: senaraiId(its), label: 'Tiba di hub HK', kelas: 'utama' }]);
+      kumpPeringkat('hub', 'Gudang Oregon', '', (its) => [{ g: 'keHK', nilai: senaraiId(its), label: 'Hantar ke hub HK' }, { g: 'hk', nilai: senaraiId(its), label: 'Tiba di hub HK' }]);
       const keHub = nampak.filter((it) => peringkat(it) === 'ship');
       const parcel = new Map();
       keHub.forEach((it) => {
@@ -776,11 +788,11 @@
         const tMin = Math.min(...its.map((it) => it.tShip || Date.now()));
         html += htmlKumpulan({
           titik: 'ship',
-          tajuk: trk === '\u0000lama' ? 'Dalam transit · data lama' : trk ? 'Ke Oregon · ' + trk : 'Ke Oregon · tanpa tracking',
+          tajuk: trk === '\u0000lama' ? 'Dalam transit · data lama' : trk ? 'Ke gudang Oregon · ' + trk : 'Ke gudang Oregon · tanpa tracking',
           sub: trk === '\u0000lama' ? 'Tiada butiran perjalanan · masukkan ke kotak apabila diketahui' :
             'Ship ' + tarikh(tMin) + ' · ' + bilHari(tMin) + ' hari' + (its.some((it) => !it.tDeclare) ? ' · <span class="tag-amaran">Belum declare</span>' : ''),
-          items: its, kad: { orang: true, peringkat: false },
-          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Pulangkan' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Tiba di Oregon' }],
+          items: its, kad: { orang: true, peringkat: false, undur: true },
+          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Pulangkan' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Tiba di gudang Oregon' }],
         });
       });
     } else if (tab === 'sampai') {
@@ -850,6 +862,14 @@
 
   $('senarai').addEventListener('click', (e) => {
     if (abaikanKlik) { abaikanKlik = false; return; }
+    const u = e.target.closest('[data-undur]');
+    if (u) {
+      const it = cariItem(u.dataset.undur);
+      if (!it) return;
+      let ke = '';
+      ubah(() => { ke = undurSatu(it); }, () => labelItem(it) + ' diundur: ' + PERINGKAT[ke] + '.');
+      return;
+    }
     const g = e.target.closest('[data-g]');
     if (g) { aksiKumpulan(g.dataset.g, g.dataset.v || ''); return; }
     const t = e.target.closest('[data-buka]');
@@ -870,9 +890,9 @@
       const belum = itemTab('beli');
       borangDeclare([], v && v !== '-' ? v : null);
     }
-    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Tiba di Oregon', 'sampai hub Oregon.');
-    else if (g === 'keHK') borangTanda(v.split(','), 'tKeHK', 'Dihantar ke Hong Kong', 'dihantar ke Hong Kong.');
-    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Tiba di Hong Kong', 'sampai Hong Kong. Boleh consolidate.');
+    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Tiba di gudang Oregon', 'tiba di gudang Oregon.');
+    else if (g === 'keHK') borangTanda(v.split(','), 'tKeHK', 'Dihantar ke hub Hong Kong', 'dihantar ke hub Hong Kong.');
+    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Tiba di hub Hong Kong', 'tiba di hub Hong Kong. Boleh consolidate.');
     else if (g === 'undur') borangUndur(v.split(','));
     else if (g === 'orderCM') borangOrderBaru([]);
     else if (g === 'senaraiOrder') bukaSenaraiOrder();
@@ -1559,6 +1579,18 @@
     it.tShip = null; it.trackUS = ''; it.tDeclare = null; it.tHub = null; it.tKeHK = null; it.tHK = null; it.kotakId = null; it.hantarId = null; it.lama = false;
   }
 
+  // Undur satu peringkat sahaja (untuk betulkan tekan tersilap), tanpa pengesahan.
+  function undurSatu(it) {
+    const p = peringkat(it);
+    if (p === 'hantar') it.hantarId = null;
+    else if (p === 'kotak' || p === 'post' || p === 'sampai') it.kotakId = null;
+    else if (p === 'hk') it.tHK = null;
+    else if (p === 'keHK') it.tKeHK = null;
+    else if (p === 'hub') it.tHub = null;
+    else if (p === 'ship') undurKeBeli(it);
+    return peringkat(it);
+  }
+
   function borangUndur(ids) {
     const calon = ids.map(cariItem).filter(Boolean);
     borang({
@@ -1576,7 +1608,7 @@
   }
 
   function tandaHub(ids) {
-    tandaMasa(ids, 'tHub', 'sampai hub Oregon.');
+    tandaMasa(ids, 'tHub', 'tiba di gudang Oregon.');
   }
 
   // Tanda satu peringkat pada beberapa item; peringkat sebelumnya yang kosong diisi sekali.
@@ -1749,7 +1781,7 @@
     else if (a === 'sampai') borangSampai(k);
     else if (a === 'edit') borangKotak(k);
     else if (a === 'padam') {
-      const ok = await sahkan({ tajuk: 'Padam ' + namaKotak(k) + '?', teks: 'Item tidak dipadam; ia kembali ke "Gudang Hong Kong".', ya: 'Padam', bahaya: true });
+      const ok = await sahkan({ tajuk: 'Padam ' + namaKotak(k) + '?', teks: 'Item tidak dipadam; ia kembali ke "Hub Hong Kong".', ya: 'Padam', bahaya: true });
       if (!ok) return;
       ubah(() => { data.kotak = data.kotak.filter((x) => x !== k); }, 'Kotak dipadam.');
       tutup($('dlgKotak'));
@@ -1867,9 +1899,9 @@
     return {
       beli: ['declare', 'Rekod penghantaran ke BNS (declare)'],
       ship: ['hub', 'Tiba di gudang Oregon'],
-      keHK: ['hk', 'Tiba di gudang Hong Kong'],
+      keHK: ['hk', 'Tiba di hub Hong Kong'],
       hk: ['kotak', 'Consolidate (masuk kotak)'],
-      hub: ['keHK', 'Dihantar ke Hong Kong'],
+      hub: ['keHK', 'Dihantar ke hub Hong Kong'],
       kotak: ['bukaKotak', 'Buka kotak · isi Skynet'],
       post: ['bukaKotak', 'Buka kotak'],
       sampai: it.kat === 'aku' ? ['ambil', 'Diterima · selesai'] : ['serah', 'Hantar kepada pelanggan'],
@@ -1917,10 +1949,10 @@
     if (!luar) {
       html += garisMasa([
         { label: 'Dibeli' + (o ? ' · ' + o.kedai : ''), t: o ? o.tBeli : null, kosong: 'Tiada order', sub: o && o.no ? esc(o.no) : '' },
-        { label: 'Ship ke Oregon', t: it.tShip, sub: it.trackUS ? esc(it.trackUS) : '', salin: it.trackUS },
-        { label: 'Tiba di Oregon', t: it.tHub },
-        { label: 'Oregon → Hong Kong', t: it.tKeHK },
-        { label: 'Tiba di Hong Kong', t: it.tHK },
+        { label: 'Dihantar ke gudang Oregon', t: it.tShip, sub: it.trackUS ? esc(it.trackUS) : '', salin: it.trackUS },
+        { label: 'Tiba di gudang Oregon', t: it.tHub },
+        { label: 'Dihantar ke hub Hong Kong', t: it.tKeHK },
+        { label: 'Tiba di hub Hong Kong', t: it.tHK },
         { label: 'Consolidate', t: k ? k.tBuat : null, sub: k ? esc(namaKotak(k)) : '' },
         { label: 'Dipost ke MY', t: k && k.tPost, sub: k && k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k && k.trackMY },
         { label: 'Tiba di Malaysia', t: k && k.tSampai },
@@ -1937,8 +1969,8 @@
     if (it.catatan) html += '<div class="catatan-penuh">' + esc(it.catatan) + '</div>';
 
     const undur = {
-      ship: 'Batal declare · kembali ke Tempahan', hub: 'Batal · kembali ke Tempahan',
-      keHK: 'Batal · kembali ke Tempahan', hk: 'Batal · kembali ke Tempahan',
+      ship: 'Batal declare · kembali ke Tempahan', hub: 'Undur · belum tiba di gudang Oregon',
+      keHK: 'Undur · masih di gudang Oregon', hk: 'Undur · belum tiba di hub Hong Kong',
       kotak: 'Keluarkan dari kotak', post: 'Keluarkan dari kotak', sampai: 'Keluarkan dari kotak', hantar: 'Batal penghantaran · kembali ke Tiba',
     }[p];
     html += '<div class="grid-aksi" style="margin-top:12px">' +
@@ -1976,17 +2008,18 @@
     else if (a === 'undur') {
       const p = peringkat(it);
       ubah(() => {
-        if (['ship', 'hub', 'keHK', 'hk'].includes(p)) undurKeBeli(it);
+        if (['hub', 'keHK', 'hk'].includes(p)) undurSatu(it);
+        else if (p === 'ship') undurKeBeli(it);
         else if (p === 'hantar') it.hantarId = null;
         else { it.kotakId = null; ['tHub', 'tKeHK', 'tHK'].forEach((x) => { if (!it[x]) it[x] = it.tShip || Date.now(); }); }
-      }, labelItem(it) + ': ' + (['ship', 'hub', 'keHK', 'hk'].includes(p) ? 'kembali ke Tempahan.' : p === 'hantar' ? 'kembali ke Tiba.' : 'dikeluarkan dari kotak (Di Hong Kong).'));
+      }, () => labelItem(it) + ': ' + PERINGKAT[peringkat(it)] + '.');
     }
     else if (a === 'bukaOrder') bukaOrder(it.orderId);
     else if (a === 'bukaKotak') bukaKotak(it.kotakId);
     else if (a === 'declare') borangDeclare([it.id]);
     else if (a === 'hub') tandaHub([it.id]);
-    else if (a === 'keHK') tandaMasa([it.id], 'tKeHK', 'dihantar ke Hong Kong.');
-    else if (a === 'hk') tandaMasa([it.id], 'tHK', 'sampai Hong Kong.');
+    else if (a === 'keHK') tandaMasa([it.id], 'tKeHK', 'dihantar ke hub Hong Kong.');
+    else if (a === 'hk') tandaMasa([it.id], 'tHK', 'tiba di hub Hong Kong.');
     else if (a === 'kotak') pilihKotak(it);
     else if (a === 'serah') borangSerah(kunciOrang(it.orang), [it.id]);
     else if (a === 'terima') terimaHantar(cariHantar(it.hantarId));
@@ -2046,9 +2079,9 @@
     borang({
       tajuk: 'Betulkan tarikh',
       nota: esc(labelItem(it)) + '. Tarikh kotak (post, sampai) diubah dari skrin kotak.',
-      html: '<div class="dua">' + medanTarikh('tShip', 'Ship ke Oregon', it.tShip) + medanTeks('trackUS', 'Tracking US', it.trackUS, ' maxlength="60"') + '</div>' +
-        '<div class="dua">' + medanTarikh('tDeclare', 'Declare BNS', it.tDeclare) + medanTarikh('tHub', 'Tiba di Oregon', it.tHub) + '</div>' +
-        '<div class="dua">' + medanTarikh('tKeHK', 'Oregon → HK', it.tKeHK) + medanTarikh('tHK', 'Tiba di Hong Kong', it.tHK) + '</div>' + kotakPilih,
+      html: '<div class="dua">' + medanTarikh('tShip', 'Dihantar ke gudang Oregon', it.tShip) + medanTeks('trackUS', 'Tracking US', it.trackUS, ' maxlength="60"') + '</div>' +
+        '<div class="dua">' + medanTarikh('tDeclare', 'Declare BNS', it.tDeclare) + medanTarikh('tHub', 'Tiba di gudang Oregon', it.tHub) + '</div>' +
+        '<div class="dua">' + medanTarikh('tKeHK', 'Dihantar ke hub HK', it.tKeHK) + medanTarikh('tHK', 'Tiba di hub HK', it.tHK) + '</div>' + kotakPilih,
       hantar(f) {
         ubah(() => {
           it.tShip = tarikhAtauNull(f.tShip.value);
@@ -2757,11 +2790,82 @@
     toast('Diecast dipasang.');
   });
 
+  /* ---------- Terjemahan English ---------- */
+
+  // Apps ditulis dalam Bahasa Melayu. Bila English dipilih, teks pada skrin ditukar
+  // ikut kamus dalam en.js setiap kali sesuatu dilukis. Input dan catatan tidak disentuh.
+  function pasangTerjemahan() {
+    const kamus = window.DIECAST_EN;
+    if (BAHASA !== 'en' || !kamus) return;
+    document.documentElement.lang = 'en';
+    const tepat = kamus.tepat || {};
+    const frasa = (kamus.frasa || []).map(([a, b]) => [new RegExp(a, 'g'), b]);
+    const ada = Object.prototype.hasOwnProperty;
+    function tukar(teks) {
+      const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(teks);
+      const teras = m[2];
+      if (!teras || !/[A-Za-z]/.test(teras)) return teks;
+      if (ada.call(tepat, teras)) return m[1] + tepat[teras] + m[3];
+      let t = teras;
+      frasa.forEach(([re, ganti]) => { t = t.replace(re, ganti); });
+      if (ada.call(tepat, t.trim())) t = tepat[t.trim()];
+      return m[1] + t + m[3];
+    }
+    const LANGKAU = { TEXTAREA: 1, SCRIPT: 1, STYLE: 1 };
+    const ATRIBUT = ['placeholder', 'title', 'aria-label'];
+    function terjemahPokok(akar) {
+      if (akar.nodeType === 3) {
+        if (akar.parentNode && !LANGKAU[akar.parentNode.nodeName]) {
+          const baru = tukar(akar.nodeValue);
+          if (baru !== akar.nodeValue) akar.nodeValue = baru;
+        }
+        return;
+      }
+      if (akar.nodeType !== 1 || LANGKAU[akar.nodeName]) return;
+      const els = [akar, ...akar.querySelectorAll('[placeholder], [title], [aria-label]')];
+      els.forEach((el) => ATRIBUT.forEach((a) => {
+        if (!el.hasAttribute || !el.hasAttribute(a)) return;
+        const v = el.getAttribute(a);
+        const baru = tukar(v);
+        if (baru !== v) el.setAttribute(a, baru);
+      }));
+      const jalan = document.createTreeWalker(akar, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = jalan.nextNode())) {
+        if (LANGKAU[n.parentNode.nodeName]) continue;
+        const baru = tukar(n.nodeValue);
+        if (baru !== n.nodeValue) n.nodeValue = baru;
+      }
+    }
+    terjemahPokok(document.body);
+    document.title = 'Diecast';
+    const pemerhati = new MutationObserver((senarai) => {
+      pemerhati.disconnect();
+      senarai.forEach((m) => {
+        if (m.type === 'characterData') terjemahPokok(m.target);
+        else if (m.type === 'attributes') terjemahPokok(m.target.nodeType === 1 ? m.target : m.target.parentNode);
+        else m.addedNodes.forEach(terjemahPokok);
+      });
+      pemerhati.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATRIBUT });
+    });
+    pemerhati.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATRIBUT });
+  }
+
+  $('segBahasa').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-bahasa]');
+    if (!b || b.dataset.bahasa === BAHASA) return;
+    tetapan.bahasa = b.dataset.bahasa;
+    simpanTetapan();
+    location.reload();
+  });
+  document.querySelectorAll('#segBahasa button').forEach((b) => b.classList.toggle('aktif', b.dataset.bahasa === BAHASA));
+
   /* ---------- Mula ---------- */
 
   muatTetapan();
   muatSelaras();
   gunaTema();
+  pasangTerjemahan();
   muat();
   papar();
 

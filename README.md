@@ -20,6 +20,10 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 
 Ikon di atas: **Senarai order CM**, **Arkib**, dan **Pelanggan** (baki setiap pelanggan; dari situ boleh **Tukar nama / gabung** dua nama yang sebenarnya orang sama).
 
+## Bahasa
+
+Tiga titik > **Bahasa**: Bahasa Melayu atau English. Apps dimuat semula bila bahasa ditukar. Data sendiri (nama item, pelanggan, catatan) dan mesej WhatsApp kepada pelanggan kekal seperti ditaip. Terjemahan English ada dalam `en.js`.
+
 ## Kos dan untung
 
 Kos sebenar setiap item:
@@ -62,6 +66,7 @@ Bila app dibuka, data lama ditukar sendiri tanpa dibuang:
 | `index.html` | Muka apps |
 | `style.css` | Warna (terang dan gelap) dan susun atur |
 | `app.js` | Semua logik apps |
+| `en.js` | Terjemahan English |
 | `config.js` | Client ID Google (projek akaun peribadi) untuk log masuk dan selaras Google Drive |
 | `manifest.webmanifest`, `sw.js` | Supaya boleh dipasang pada telefon dan dibuka tanpa internet |
 | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Ikon apps |
