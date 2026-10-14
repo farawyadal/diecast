@@ -9,7 +9,24 @@ Developed by FaridAssamani.
 - **Personal**: barang aku order untuk diri sendiri (dari Mattel Creations, atau dari orang lain macam Enal).
 - **OTW**: barang kastemer yang dah ship, dalam perjalanan ke Malaysia.
 - **Belum Ship**: barang kastemer yang dah beli tapi belum ship.
+- **Order**: order Mattel dan kotak Buyandship, ikut peringkat.
 - **Arkib**: barang yang dah diserah pada kastemer (atau dah sampai untuk personal).
+
+## Order dan Kotak (tab Order)
+
+Untuk jejak order Mattel Creations sampai ke Malaysia melalui Buyandship.
+
+1. **Order baru**: isi no. order (CHP…), akaun (fa.rawyadal / assamani83) dan tanda item mana dalam order itu.
+2. **Dah ship dari US**: satu tekan, tampal tracking kalau ada. Item kastemer dalam order itu pindah sendiri dari Belum Ship ke OTW.
+3. **Declared** dan **Sampai hub**: tanda pilihan, tak wajib.
+4. **Masuk kotak**: bila consolidate di Buyandship, masukkan order ke satu kotak (atau buat kotak dari tab Order > **+ Kotak baru**).
+5. Dari skrin kotak: **Dah post ke MY** (tracking MY pilihan), kemudian **Dah sampai MY**. Semua order dan item dalam kotak ikut sekali.
+
+- Kad item tunjuk peringkat order dan bilangan hari sejak beli.
+- Dari skrin item, **Pair dengan order** untuk sambung item lama dengan order.
+- Order hilang dari senarai Aktif bila dah sampai MY dan semua itemnya diarkibkan (ada di tapisan **Selesai**).
+- Kos shipping kotak hanya direkod, tak dicaj pada kastemer.
+- Tarikh boleh dibetulkan melalui **Edit order** atau **Edit / urus order** dalam kotak.
 
 ## Warna status
 

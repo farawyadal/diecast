@@ -10,6 +10,14 @@
 
   Status bayaran dikira daripada harga dan jumlah bayaran:
     dah bayar (hijau) | depo (kuning) | belum bayar (oren) | tiada harga (kelabu)
+
+  Order dan Kotak:
+    order = satu order Mattel (no. order, akaun, tarikh beli, tracking US)
+    kotak = satu consolidate Buyandship yang memegang beberapa order
+  Peringkat order: beli -> ship (dari US) -> post (kotak dipost ke MY) -> sampai (kotak sampai MY).
+  "Declared" dan "Sampai hub" ialah tanda pilihan dalam peringkat ship.
+  Item kastemer yang dipairkan dengan order ikut peringkat order itu:
+  order masih "beli" = Belum Ship; selepas itu = OTW.
 */
 (function () {
   'use strict';
@@ -31,8 +39,8 @@
   };
   const BULAN = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
 
-  let data = { v: 1, diubah: 0, items: [], bank: '' };
-  let tetapan = { tema: 'sistem', tab: 'otw', status: 'semua' };
+  let data = { v: 1, diubah: 0, items: [], orders: [], kotak: [], bank: '' };
+  let tetapan = { tema: 'sistem', tab: 'otw', status: 'semua', tahap: 'aktif', akaun: 'fa.rawyadal' };
   let cari = '';
 
   /* ---------- Alat kecil ---------- */
@@ -115,6 +123,40 @@
       arkib: Number(x.arkib) || null,
       dibuat: Number(x.dibuat) || Date.now(),
       urutan: Number(x.urutan) || 0,
+      orderId: x.orderId ? String(x.orderId) : null,
+    };
+  }
+
+  const masaAtauNull = (n) => Number(n) || null;
+
+  function bersihOrder(x) {
+    if (!x || typeof x !== 'object' || !x.no) return null;
+    return {
+      id: String(x.id || idBaru()),
+      no: String(x.no).trim().slice(0, 40),
+      akaun: String(x.akaun || '').trim().slice(0, 40),
+      tBeli: Number(x.tBeli) || Date.now(),
+      tShip: masaAtauNull(x.tShip),
+      trackUS: String(x.trackUS || '').trim().slice(0, 60),
+      tDeclare: masaAtauNull(x.tDeclare),
+      tHub: masaAtauNull(x.tHub),
+      kotakId: x.kotakId ? String(x.kotakId) : null,
+      catatan: String(x.catatan || '').slice(0, 300),
+      dibuat: Number(x.dibuat) || Date.now(),
+    };
+  }
+
+  function bersihKotak(x) {
+    if (!x || typeof x !== 'object') return null;
+    return {
+      id: String(x.id || idBaru()),
+      no: String(x.no || '').trim().slice(0, 40),
+      trackMY: String(x.trackMY || '').trim().slice(0, 60),
+      kos: x.kos === null || x.kos === '' || x.kos === undefined ? null : bulat(x.kos),
+      tPost: masaAtauNull(x.tPost),
+      tSampai: masaAtauNull(x.tSampai),
+      catatan: String(x.catatan || '').slice(0, 300),
+      dibuat: Number(x.dibuat) || Date.now(),
     };
   }
 
@@ -123,6 +165,8 @@
       v: 1,
       diubah: Number(j.diubah) || Date.now(),
       items: (Array.isArray(j.items) ? j.items : []).map(bersihItem).filter(Boolean),
+      orders: (Array.isArray(j.orders) ? j.orders : []).map(bersihOrder).filter(Boolean),
+      kotak: (Array.isArray(j.kotak) ? j.kotak : []).map(bersihKotak).filter(Boolean),
       bank: String(j.bank || '').slice(0, 300),
     };
   }
@@ -135,6 +179,7 @@
   }
 
   function simpan(opt) {
+    kemasKat();
     if (!(opt && opt.kekal)) data.diubah = Date.now();
     try { localStorage.setItem(KUNCI, JSON.stringify(data)); } catch (e) { toast('Tak dapat simpan dalam peranti ini.'); }
     if (!(opt && opt.kekal)) jadualSelaras();
@@ -145,7 +190,8 @@
       const j = JSON.parse(localStorage.getItem(KUNCI_TETAPAN) || '{}');
       if (j && typeof j === 'object') tetapan = Object.assign(tetapan, j);
     } catch (e) { /* guna lalai */ }
-    if (!['personal', 'otw', 'tunggu', 'arkib'].includes(tetapan.tab)) tetapan.tab = 'otw';
+    if (!['personal', 'otw', 'tunggu', 'order', 'arkib'].includes(tetapan.tab)) tetapan.tab = 'otw';
+    if (!['aktif', 'beli', 'ship', 'post', 'selesai'].includes(tetapan.tahap)) tetapan.tahap = 'aktif';
     if (!['semua', 'belum', 'depo', 'lunas'].includes(tetapan.status)) tetapan.status = 'semua';
   }
   function simpanTetapan() {
@@ -192,11 +238,14 @@
   const tindan = [];
   let abaikanPop = 0;
 
+  let pushTertunda = 0;
   function buka(dlg) {
     if (dlg.open) return;
     dlg.showModal();
     tindan.push(dlg);
-    history.pushState({ diecast: tindan.length }, '');
+    // Kalau history.back() dari helaian yang baru ditutup belum selesai, push selepas ia selesai.
+    if (abaikanPop > 0) pushTertunda++;
+    else history.pushState({ diecast: tindan.length }, '');
   }
 
   function tutup(dlg) { if (dlg.open) dlg.close(); }
@@ -215,7 +264,11 @@
   });
 
   window.addEventListener('popstate', () => {
-    if (abaikanPop > 0) { abaikanPop--; return; }
+    if (abaikanPop > 0) {
+      abaikanPop--;
+      if (abaikanPop === 0) for (; pushTertunda > 0; pushTertunda--) history.pushState({ diecast: tindan.length }, '');
+      return;
+    }
     if ($('dlgSah').open) { $('dlgSah').close('b'); }
     const atas = tindan[tindan.length - 1];
     if (atas) { atas.dataset.pop = '1'; atas.close(); }
@@ -244,6 +297,65 @@
   }
   const sahkan = (o) => tanya(o).then((v) => v === 'ya');
 
+  /* ---------- Order dan kotak: peringkat ---------- */
+
+  const HARI = 86400000;
+  const cariOrder = (id) => data.orders.find((o) => o.id === id);
+  const cariKotak = (id) => data.kotak.find((k) => k.id === id);
+  const itemOrder = (o) => data.items.filter((it) => it.orderId === o.id);
+  const orderKotak = (k) => data.orders.filter((o) => o.kotakId === k.id);
+  const bilHari = (dari, hingga) => Math.max(0, Math.floor(((hingga || Date.now()) - dari) / HARI));
+
+  // beli | ship | post | sampai
+  function peringkat(o) {
+    const k = o.kotakId ? cariKotak(o.kotakId) : null;
+    if (k && k.tSampai) return 'sampai';
+    if (k && k.tPost) return 'post';
+    if (o.tShip || k) return 'ship';
+    return 'beli';
+  }
+
+  // Label yang lebih halus untuk peringkat ship.
+  function labelOrder(o) {
+    const p = peringkat(o);
+    if (p === 'beli') return 'Dibeli';
+    if (p === 'post') return 'Dipost ke MY';
+    if (p === 'sampai') return 'Sampai MY';
+    if (o.kotakId) return 'Dalam kotak';
+    if (o.tHub) return 'Sampai hub';
+    if (o.tDeclare) return 'Declared';
+    return 'Ship dari US';
+  }
+
+  // Order selesai: dah sampai MY dan semua item dah diarkib (atau tiada item).
+  const orderSelesai = (o) => peringkat(o) === 'sampai' && itemOrder(o).every((it) => it.arkib);
+  const kotakSelesai = (k) => !!k.tSampai && orderKotak(k).every(orderSelesai);
+
+  function hariOrder(o) {
+    const k = o.kotakId ? cariKotak(o.kotakId) : null;
+    return bilHari(o.tBeli, k && k.tSampai ? k.tSampai : null);
+  }
+
+  function namaKotak(k) {
+    return k.no || ('Kotak ' + tarikh(k.dibuat));
+  }
+
+  // Item kastemer yang dipairkan ikut peringkat order. Dipanggil setiap kali simpan.
+  function kemasKat() {
+    if (!data.orders) return;
+    data.items.forEach((it) => {
+      if (!it.orderId) return;
+      const o = cariOrder(it.orderId);
+      if (!o) { it.orderId = null; return; }
+      if (it.kat !== 'personal') it.kat = peringkat(o) === 'beli' ? 'tunggu' : 'otw';
+    });
+    data.orders.forEach((o) => { if (o.kotakId && !cariKotak(o.kotakId)) o.kotakId = null; });
+  }
+
+  function labelItem(it) {
+    return (it.jenis ? it.jenis + ' ' : '') + it.nama + (it.qty > 1 ? ' ×' + it.qty : '');
+  }
+
   /* ---------- Paparan senarai ---------- */
 
   function itemAktif(kat) { return data.items.filter((it) => !it.arkib && it.kat === kat); }
@@ -264,7 +376,25 @@
       document.querySelector('[data-kira="' + k + '"]').textContent = itemAktif(k).length;
     });
     document.querySelector('[data-kira="arkib"]').textContent = data.items.filter((it) => it.arkib).length;
-    document.querySelectorAll('#cip button').forEach((b) => b.classList.toggle('aktif', b.dataset.status === tetapan.status));
+    document.querySelector('[data-kira="order"]').textContent = data.orders.filter((o) => !orderSelesai(o)).length;
+
+    // Butang tapis: status bayaran untuk tab item, peringkat untuk tab Order.
+    const tabOrder = tetapan.tab === 'order';
+    const jenisCip = tabOrder ? 'tahap' : 'status';
+    if ($('cip').dataset.jenis !== jenisCip) {
+      $('cip').dataset.jenis = jenisCip;
+      $('cip').innerHTML = tabOrder
+        ? '<button type="button" data-tahap="aktif">Aktif</button><button type="button" data-tahap="beli">Dibeli</button>' +
+          '<button type="button" data-tahap="ship">Di US / hub</button><button type="button" data-tahap="post">Dipost</button>' +
+          '<button type="button" data-tahap="selesai">Selesai</button>'
+        : '<button type="button" data-status="semua">Semua</button><button type="button" data-status="belum"><i class="titik s-belum"></i>Belum bayar</button>' +
+          '<button type="button" data-status="depo"><i class="titik s-depo"></i>Depo</button><button type="button" data-status="lunas"><i class="titik s-lunas"></i>Dah bayar</button>';
+    }
+    document.querySelectorAll('#cip button').forEach((b) => b.classList.toggle('aktif',
+      tabOrder ? b.dataset.tahap === tetapan.tahap : b.dataset.status === tetapan.status));
+    $('cari').placeholder = tabOrder ? 'Cari no. order, tracking, item' : 'Cari item atau nama';
+    $('fabTeks').textContent = tabOrder ? 'Order baru' : 'Tambah item';
+    $('btnTambah').setAttribute('aria-label', tabOrder ? 'Order baru' : 'Tambah item');
   }
 
   function paparRingkas(senarai) {
@@ -294,8 +424,10 @@
         '</div>';
     }
     let bawah = '';
-    if (it.arkib) bawah = '<div class="kad-catatan">' + (it.kat === 'personal' ? 'Diterima ' : 'Diserah ') + tarikh(it.arkib) + ' · dari ' + esc(KAT[it.kat].nama) + '</div>';
-    else if (it.catatan) bawah = '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
+    const o = it.orderId && !it.arkib ? cariOrder(it.orderId) : null;
+    if (o) bawah += '<div class="kad-tahap"><span class="tahap-titik t-' + peringkat(o) + '"></span>' + esc(labelOrder(o)) + ' · ' + hariOrder(o) + ' hari · ' + esc(o.no) + '</div>';
+    if (it.arkib) bawah += '<div class="kad-catatan">' + (it.kat === 'personal' ? 'Diterima ' : 'Diserah ') + tarikh(it.arkib) + ' · dari ' + esc(KAT[it.kat].nama) + '</div>';
+    else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
     return '<button type="button" class="kad st-' + st + '" data-id="' + esc(it.id) + '">' +
       '<div class="kad-atas"><div class="kad-nama">' +
       (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') + esc(it.nama) +
@@ -307,12 +439,13 @@
   function papar() {
     paparTab();
     const tab = tetapan.tab;
-    const ada = data.items.length > 0;
+    const ada = data.items.length > 0 || data.orders.length > 0;
     $('kosongMula').hidden = ada;
     $('tapisBar').hidden = !ada;
     $('ringkas').hidden = !ada;
     $('tab').hidden = !ada;
     if (!ada) { $('senarai').innerHTML = ''; return; }
+    if (tab === 'order') { paparOrder(); return; }
 
     let semua = tab === 'arkib'
       ? data.items.filter((it) => it.arkib).sort((a, b) => b.arkib - a.arkib)
@@ -358,8 +491,13 @@
   }
 
   $('senarai').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-aksi-senarai]');
+    if (a) { if (a.dataset.aksiSenarai === 'kotakBaru') borangKotak(null); return; }
     const k = e.target.closest('.kad');
-    if (k) bukaButir(k.dataset.id);
+    if (!k) return;
+    if (k.dataset.order) bukaOrder(k.dataset.order);
+    else if (k.dataset.kotak) bukaKotak(k.dataset.kotak);
+    else bukaButir(k.dataset.id);
   });
 
   $('tab').addEventListener('click', (e) => {
@@ -372,9 +510,10 @@
   });
 
   $('cip').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-status]');
+    const b = e.target.closest('button[data-status], button[data-tahap]');
     if (!b) return;
-    tetapan.status = b.dataset.status;
+    if (b.dataset.tahap) tetapan.tahap = b.dataset.tahap;
+    else tetapan.status = b.dataset.status;
     simpanTetapan();
     papar();
   });
@@ -417,6 +556,16 @@
       '<div><span>' + (personal ? 'Aku dah bayar' : 'Dah terima') + '</span><b>' + rm(b) + '</b></div>' +
       '<div class="baki' + (bk <= 0 ? ' sifar' : '') + '"><span>' + (bk < 0 ? 'Terlebih' : 'Baki') + '</span><b>' + rm(Math.abs(bk)) + '</b></div></div>';
 
+    const ord = it.orderId ? cariOrder(it.orderId) : null;
+    if (ord) {
+      html += '<button type="button" class="pautan-order" data-aksi="bukaOrder"><span class="tahap-titik t-' + peringkat(ord) + '"></span>' +
+        '<span class="isi"><b>' + esc(ord.no) + '</b><small>' + esc(labelOrder(ord)) + ' · ' + hariOrder(ord) + ' hari sejak beli' +
+        (ord.akaun ? ' · ' + esc(ord.akaun) : '') + '</small></span><span class="anak">›</span></button>';
+    } else if (!it.arkib) {
+      html += '<button type="button" class="pautan-order kosong-order" data-aksi="pairOrder"><span class="isi"><b>Pair dengan order</b>' +
+        '<small>Item ikut status order Mattel secara automatik</small></span><span class="anak">›</span></button>';
+    }
+
     if (it.modal !== null && !personal) {
       html += '<p class="untung">Modal ' + rm(it.modal) + ' · untung ' + rm(h - it.modal) + '</p>';
     }
@@ -432,13 +581,14 @@
     if (it.arkib) {
       html += '<button class="btn penuh" type="button" data-aksi="pulih">Pulihkan ke ' + esc(KAT[it.kat].nama) + '</button>';
     } else {
-      if (it.kat === 'tunggu') html += '<button class="btn penuh" type="button" data-aksi="pindah" data-ke="otw">Dah ship · pindah ke OTW</button>';
+      if (it.kat === 'tunggu' && !ord) html += '<button class="btn penuh" type="button" data-aksi="pindah" data-ke="otw">Dah ship · pindah ke OTW</button>';
       html += '<button class="btn penuh" type="button" data-aksi="arkib">' + (personal ? 'Dah terima barang · Arkibkan' : 'Dah serah pada kastemer · Arkibkan') + '</button>';
     }
     if (bk > 0) html += '<button class="btn" type="button" data-aksi="edit">Edit</button>';
     html += '<button class="btn bahaya' + (bk > 0 ? '' : ' penuh') + '" type="button" data-aksi="padam">Padam</button>';
     if (!it.arkib) {
-      const lain = Object.keys(KAT).filter((k) => k !== it.kat && !(it.kat === 'tunggu' && k === 'otw'));
+      const lain = Object.keys(KAT).filter((k) => k !== it.kat && !(it.kat === 'tunggu' && k === 'otw') &&
+        !(ord && it.kat !== 'personal' && k !== 'personal'));
       html += '<p class="nota penuh" style="margin:6px 0 0">Pindah ke: ' + lain.map((k) =>
         '<button class="btn kecil" type="button" data-aksi="pindah" data-ke="' + k + '">' + KAT[k].nama + '</button>').join(' ') + '</p>';
     }
@@ -467,6 +617,8 @@
     const aksi = b.dataset.aksi;
 
     if (aksi === 'tutup') tutup($('dlgButir'));
+    else if (aksi === 'bukaOrder') bukaOrder(it.orderId);
+    else if (aksi === 'pairOrder') pairItem(it);
     else if (aksi === 'bayar') bukaBayar(it);
     else if (aksi === 'edit') bukaBorang(it);
     else if (aksi === 'penuh') {
@@ -528,6 +680,568 @@
     }
   });
 
+  /* ---------- Tab Order ---------- */
+
+  const TAJUK_TAHAP = { beli: 'Dibeli', ship: 'Di US / hub', post: 'Dipost ke MY', sampai: 'Sampai MY · belum serah semua' };
+  const IKON_SALIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
+
+  function padanOrder(o) {
+    if (!cari) return true;
+    const k = o.kotakId ? cariKotak(o.kotakId) : null;
+    const s = [o.no, o.akaun, o.trackUS, o.catatan, k ? namaKotak(k) + ' ' + k.trackMY : '']
+      .concat(itemOrder(o).map((it) => labelItem(it) + ' ' + it.orang)).join(' ').toLowerCase();
+    return cari.toLowerCase().split(/\s+/).every((x) => s.includes(x));
+  }
+
+  function ringkasItemOrder(o) {
+    const its = itemOrder(o);
+    if (!its.length) return 'Belum ada item dipairkan';
+    const teks = its.slice(0, 3).map((it) => labelItem(it) + (it.kat !== 'personal' ? ' (' + it.orang + ')' : ' (aku)'));
+    return teks.join(', ') + (its.length > 3 ? ' +' + (its.length - 3) + ' lagi' : '');
+  }
+
+  function htmlKadOrder(o) {
+    const p = peringkat(o);
+    let tag = '';
+    if (p === 'ship' && !o.kotakId && !o.tDeclare) tag = '<span class="tag-amaran">Belum declare</span>';
+    return '<button type="button" class="kad kad-order t-' + p + '" data-order="' + esc(o.id) + '">' +
+      '<div class="kad-atas"><div class="kad-nama">' + esc(o.no) + (o.akaun ? ' <span class="qty">' + esc(o.akaun) + '</span>' : '') + '</div>' +
+      '<span class="pil-tahap t-' + p + '">' + esc(labelOrder(o)) + '</span></div>' +
+      '<div class="kad-orang">Dibeli ' + tarikh(o.tBeli) + ' · ' + hariOrder(o) + ' hari' + tag + '</div>' +
+      '<div class="kad-catatan">' + esc(ringkasItemOrder(o)) + '</div></button>';
+  }
+
+  function labelKotak(k) {
+    if (k.tSampai) return 'Sampai MY';
+    if (k.tPost) return 'Dipost ke MY';
+    return 'Belum post';
+  }
+  function tahapKotak(k) { return k.tSampai ? 'sampai' : k.tPost ? 'post' : 'ship'; }
+
+  function htmlKadKotak(k) {
+    const ords = orderKotak(k);
+    const bil = ords.reduce((j, o) => j + itemOrder(o).length, 0);
+    return '<button type="button" class="kad kad-kotak t-' + tahapKotak(k) + '" data-kotak="' + esc(k.id) + '">' +
+      '<div class="kad-atas"><div class="kad-nama"><span class="jenis">KOTAK</span>' + esc(namaKotak(k)) + '</div>' +
+      '<span class="pil-tahap t-' + tahapKotak(k) + '">' + labelKotak(k) + '</span></div>' +
+      '<div class="kad-orang">' + ords.length + ' order · ' + bil + ' item' + (k.tPost ? ' · dipost ' + tarikh(k.tPost) + ' · ' + bilHari(k.tPost, k.tSampai) + ' hari' : '') + '</div>' +
+      (k.trackMY ? '<div class="kad-catatan">Tracking MY: ' + esc(k.trackMY) + '</div>' : '') + '</button>';
+  }
+
+  function paparOrder() {
+    const aktif = data.orders.filter((o) => !orderSelesai(o));
+    const kira = (t) => aktif.filter((o) => peringkat(o) === t).length;
+    $('ringkas').innerHTML =
+      '<div class="kotak"><span class="label">Dibeli</span><span class="nilai">' + kira('beli') + ' order</span></div>' +
+      '<div class="kotak"><span class="label">Di US / hub</span><span class="nilai">' + kira('ship') + ' order</span></div>' +
+      '<div class="kotak"><span class="label">Dipost ke MY</span><span class="nilai">' + kira('post') + ' order</span></div>';
+
+    const tahap = tetapan.tahap;
+    const ikut = data.orders.filter(padanOrder).filter((o) =>
+      tahap === 'aktif' ? !orderSelesai(o) : tahap === 'selesai' ? orderSelesai(o) : (!orderSelesai(o) && peringkat(o) === tahap));
+    let html = '';
+
+    // Kotak yang belum sampai MY
+    if (tahap === 'aktif' || tahap === 'ship' || tahap === 'post') {
+      const kotak = data.kotak.filter((k) => !k.tSampai && (tahap === 'aktif' || tahapKotak(k) === tahap))
+        .filter((k) => !cari || orderKotak(k).some(padanOrder) || (namaKotak(k) + ' ' + k.trackMY).toLowerCase().includes(cari.toLowerCase()))
+        .sort((a, b) => a.dibuat - b.dibuat);
+      html += '<div class="seksyen-kepala"><h2 class="kumpulan-tajuk">Kotak Buyandship</h2>' +
+        '<button type="button" class="btn kecil" data-aksi-senarai="kotakBaru">+ Kotak baru</button></div>';
+      html += kotak.length ? kotak.map(htmlKadKotak).join('')
+        : '<p class="nota kosong-kecil">Tiada kotak aktif. Bila order dah sampai hub, buat kotak untuk consolidate.</p>';
+    }
+
+    if (!ikut.length) {
+      html += '<p class="kosong">' + (data.orders.length ? 'Tiada order yang padan.' : 'Belum ada order. Tekan Order baru bila kau beli di Mattel Creations.') + '</p>';
+    } else if (tahap === 'selesai') {
+      html += '<h2 class="kumpulan-tajuk">Selesai</h2>' + ikut.sort((a, b) => b.tBeli - a.tBeli).map(htmlKadOrder).join('');
+    } else {
+      ['beli', 'ship', 'post', 'sampai'].forEach((t) => {
+        const g = ikut.filter((o) => peringkat(o) === t).sort((a, b) => a.tBeli - b.tBeli);
+        if (!g.length) return;
+        html += '<h2 class="kumpulan-tajuk">' + TAJUK_TAHAP[t] + ' · ' + g.length + '</h2>' + g.map(htmlKadOrder).join('');
+      });
+    }
+    $('senarai').innerHTML = html;
+  }
+
+  /* ---------- Butang Back: tunggu history.back() selesai sebelum push baru ---------- */
+
+  function segarSemua() {
+    papar();
+    if ($('dlgButir').open) paparButir();
+    if ($('dlgOrder').open) paparOrderButir();
+    if ($('dlgKotak').open) paparKotakButir();
+  }
+
+  async function salin(teks) {
+    try { await navigator.clipboard.writeText(teks); toast('Disalin: ' + teks); }
+    catch (e) { toast(teks); }
+  }
+
+  /* ---------- Borang umum ---------- */
+
+  // o: { tajuk, html, simpan: 'label', hantar(form) -> mesej ralat atau kosong }
+  let hantarBorang = null;
+  function borang(o) {
+    const f = $('formX');
+    f.innerHTML = '<h2>' + esc(o.tajuk) + '</h2>' + (o.nota ? '<p class="nota">' + esc(o.nota) + '</p>' : '') + o.html +
+      '<p class="ralat" id="formRalat" role="alert"></p>' +
+      '<div class="aksi-bawah"><button class="btn" type="button" data-batal="1">Batal</button>' +
+      '<button class="btn utama" type="submit">' + esc(o.simpan || 'Simpan') + '</button></div>';
+    hantarBorang = o.hantar;
+    buka($('dlgForm'));
+    const pertama = f.querySelector('[data-fokus]');
+    if (pertama) setTimeout(() => pertama.focus(), 50);
+  }
+  $('formX').addEventListener('click', (e) => {
+    if (e.target.closest('[data-batal]')) tutup($('dlgForm'));
+  });
+  $('formX').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!hantarBorang) return;
+    const ralat = hantarBorang(e.target);
+    if (ralat) { $('formRalat').textContent = ralat; return; }
+    tutup($('dlgForm'));
+    segarSemua();
+  });
+  // Kotak cari dalam senarai pilihan
+  $('formX').addEventListener('input', (e) => {
+    if (!e.target.matches('[data-tapis-pilih]')) return;
+    const q = e.target.value.trim().toLowerCase();
+    $('formX').querySelectorAll('.senarai-pilih label').forEach((l) => {
+      l.hidden = !!q && !l.textContent.toLowerCase().includes(q) && !l.querySelector('input:checked');
+    });
+  });
+
+  const medanTarikh = (nama, label, ms, wajib) =>
+    '<label class="medan">' + esc(label) + (wajib ? '' : ' <small>(kosongkan kalau belum)</small>') +
+    '<input type="date" name="' + nama + '" value="' + (ms ? tarikhInput(ms) : '') + '"' + (wajib ? ' required' : '') + '></label>';
+  const medanTeks = (nama, label, nilai, ext) =>
+    '<label class="medan">' + label + '<input name="' + nama + '" value="' + esc(nilai || '') + '"' + (ext || '') + '></label>';
+  const tarikhAtauNull = (v) => (v ? dariInput(v) : null);
+
+  function senaraiPilih(nama, pilihan, jenis) {
+    if (!pilihan.length) return '<p class="nota">Tiada pilihan.</p>';
+    return (pilihan.length > 6 ? '<input class="tapis-pilih" type="search" data-tapis-pilih placeholder="Tapis senarai">' : '') +
+      '<div class="senarai-pilih">' + pilihan.map((p) =>
+        '<label><input type="' + (jenis || 'checkbox') + '" name="' + nama + '" value="' + esc(p.nilai) + '"' + (p.pilih ? ' checked' : '') + '>' +
+        '<span><b>' + esc(p.label) + '</b>' + (p.sub ? '<small>' + esc(p.sub) + '</small>' : '') + '</span></label>').join('') + '</div>';
+  }
+  const nilaiPilih = (f, nama) => [...f.querySelectorAll('input[name="' + nama + '"]:checked')].map((x) => x.value);
+
+  /* ---------- Order: borang ---------- */
+
+  function pilihanItem(o, tandaId) {
+    return data.items.filter((it) => !it.arkib && (!it.orderId || (o && it.orderId === o.id)))
+      .sort((a, b) => (a.kat === 'personal') - (b.kat === 'personal') || a.orang.localeCompare(b.orang))
+      .map((it) => ({
+        nilai: it.id,
+        label: labelItem(it),
+        sub: (it.kat === 'personal' ? 'Personal' : it.orang) + ' · ' + KAT[it.kat].nama,
+        pilih: (o && it.orderId === o.id) || it.id === tandaId,
+      }));
+  }
+
+  function borangOrder(o, opt) {
+    opt = opt || {};
+    let html = medanTeks('no', 'No. order Mattel', o ? o.no : '', ' required maxlength="40" placeholder="CHP1234567" autocapitalize="characters" data-fokus') +
+      '<label class="medan">Akaun<input name="akaun" list="senaraiAkaun" maxlength="40" value="' + esc(o ? o.akaun : tetapan.akaun || '') + '"></label>' +
+      medanTarikh('tBeli', 'Tarikh beli', o ? o.tBeli : Date.now(), true);
+    if (o) {
+      html += medanTarikh('tShip', 'Tarikh ship dari US', o.tShip) +
+        medanTeks('trackUS', 'Tracking US <small>(pilihan)</small>', o.trackUS, ' maxlength="60"') +
+        medanTarikh('tDeclare', 'Tarikh declare Buyandship', o.tDeclare) +
+        medanTarikh('tHub', 'Tarikh sampai hub', o.tHub);
+    }
+    html += '<label class="medan">Catatan <small>(pilihan)</small><textarea name="catatan" rows="2" maxlength="300">' + esc(o ? o.catatan : '') + '</textarea></label>';
+    if (!o) html += '<h3>Item dalam order ini</h3><p class="nota">Tanda item yang dibeli dalam order ini. Item baru boleh ditambah kemudian dari skrin order.</p>' +
+      senaraiPilih('item', pilihanItem(null, opt.item));
+
+    borang({
+      tajuk: o ? 'Edit order' : 'Order baru',
+      html,
+      hantar(f) {
+        const no = f.no.value.trim();
+        if (!no) return 'Isi no. order.';
+        if (!f.tBeli.value) return 'Isi tarikh beli.';
+        const nilai = {
+          no, akaun: f.akaun.value.trim(), tBeli: dariInput(f.tBeli.value), catatan: f.catatan.value.trim(),
+        };
+        if (o) {
+          Object.assign(nilai, {
+            tShip: tarikhAtauNull(f.tShip.value), trackUS: f.trackUS.value.trim(),
+            tDeclare: tarikhAtauNull(f.tDeclare.value), tHub: tarikhAtauNull(f.tHub.value),
+          });
+          if (!nilai.tShip && o.kotakId) return 'Order ini dalam kotak. Keluarkan dari kotak dulu sebelum kosongkan tarikh ship.';
+          Object.assign(o, bersihOrder(Object.assign({}, o, nilai)));
+          simpan();
+          toast('Order disimpan.');
+        } else {
+          const baru = bersihOrder(Object.assign(nilai, { id: idBaru(), dibuat: Date.now() }));
+          data.orders.push(baru);
+          nilaiPilih(f, 'item').forEach((id) => { const it = cariItem(id); if (it) it.orderId = baru.id; });
+          if (nilai.akaun) tetapan.akaun = nilai.akaun;
+          tetapan.tab = 'order';
+          simpanTetapan();
+          simpan();
+          toast('Order ' + no + ' ditambah.');
+        }
+        return '';
+      },
+    });
+  }
+
+  /* ---------- Order: butiran ---------- */
+
+  let orderId = null;
+  function bukaOrder(id) {
+    orderId = id;
+    if (paparOrderButir()) buka($('dlgOrder'));
+  }
+
+  function garisMasa(baris) {
+    return '<ol class="garis-masa">' + baris.map((b) =>
+      '<li class="' + (b.t ? 'siap' : '') + '"><span class="bulatan"></span><span class="isi"><b>' + esc(b.label) + '</b>' +
+      '<small>' + (b.t ? tarikh(b.t) : (b.kosong || 'Belum')) + (b.sub ? ' · ' + b.sub : '') + '</small></span>' +
+      (b.salin ? '<button type="button" class="buang" data-salin="' + esc(b.salin) + '" aria-label="Salin ' + esc(b.salin) + '">' + IKON_SALIN + '</button>' : '') +
+      '</li>').join('') + '</ol>';
+  }
+
+  function paparOrderButir() {
+    const o = cariOrder(orderId);
+    if (!o) { tutup($('dlgOrder')); return false; }
+    const p = peringkat(o);
+    const k = o.kotakId ? cariKotak(o.kotakId) : null;
+    const its = itemOrder(o);
+
+    let html = '<div class="butir-kepala"><h2>' + esc(o.no) + '</h2><span class="pil-tahap t-' + p + '">' + esc(labelOrder(o)) + '</span></div>';
+    html += '<p class="butir-sub">' + (o.akaun ? esc(o.akaun) + ' · ' : '') + its.length + ' item · ' + hariOrder(o) + ' hari sejak beli</p>';
+
+    html += '<div class="grid-aksi">';
+    if (p === 'beli') {
+      html += '<button class="btn utama penuh" type="button" data-aksi="ship">Dah ship dari US</button>';
+    } else if (p === 'ship' && !k) {
+      html += '<button class="btn togol' + (o.tDeclare ? ' hidup' : '') + '" type="button" data-aksi="declare">' + (o.tDeclare ? '✓ ' : '') + 'Declared</button>' +
+        '<button class="btn togol' + (o.tHub ? ' hidup' : '') + '" type="button" data-aksi="hub">' + (o.tHub ? '✓ ' : '') + 'Sampai hub</button>' +
+        '<button class="btn utama penuh" type="button" data-aksi="kotak">Masuk kotak (consolidate)</button>';
+    }
+    if (k) html += '<button class="btn' + (p === 'ship' ? ' utama' : '') + ' penuh" type="button" data-aksi="bukaKotak">Buka kotak · ' + esc(namaKotak(k)) + '</button>';
+    html += '</div>';
+
+    html += garisMasa([
+      { label: 'Dibeli', t: o.tBeli },
+      { label: 'Ship dari US', t: o.tShip, sub: o.trackUS ? esc(o.trackUS) : '', salin: o.trackUS },
+      { label: 'Declared di Buyandship', t: o.tDeclare, kosong: 'Pilihan' },
+      { label: 'Sampai hub', t: o.tHub, kosong: 'Pilihan' },
+      { label: 'Dipost ke MY', t: k && k.tPost, sub: k ? esc(namaKotak(k)) + (k.trackMY ? ' · ' + esc(k.trackMY) : '') : '', salin: k && k.trackMY },
+      { label: 'Sampai MY', t: k && k.tSampai, sub: k && k.tSampai ? hariOrder(o) + ' hari dari beli' : '' },
+    ]);
+
+    if (o.catatan) html += '<div class="catatan-penuh">' + esc(o.catatan) + '</div>';
+
+    html += '<h3>Item (' + its.length + ')</h3>';
+    html += its.length ? '<div>' + its.map((it) => {
+      const st = status(it);
+      return '<button type="button" class="item-mini boleh" data-item="' + esc(it.id) + '"><i class="titik s-' + st + '"></i><span class="isi">' + esc(labelItem(it)) +
+        '<small>' + (it.kat === 'personal' ? 'Personal' : esc(it.orang)) + (it.arkib ? ' · diarkib' : '') + '</small></span>' +
+        '<span class="baki">' + (baki(it) > 0 ? rm(baki(it)) : STATUS[st]) + '</span></button>';
+    }).join('') + '</div>' : '<p class="nota">Belum ada item. Pair item yang dah ada, atau tambah baru.</p>';
+    html += '<div class="grid-aksi" style="margin-top:10px"><button class="btn" type="button" data-aksi="pair">Pair item</button>' +
+      '<button class="btn" type="button" data-aksi="itemBaru">+ Item baru</button>' +
+      '<button class="btn" type="button" data-aksi="edit">Edit order</button>' +
+      '<button class="btn bahaya" type="button" data-aksi="padam">Padam order</button></div>';
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-aksi="tutup">Tutup</button></div>';
+    $('orderIsi').innerHTML = html;
+    return true;
+  }
+
+  function kiraPindahOtw(o) {
+    return itemOrder(o).filter((it) => !it.arkib && it.kat !== 'personal').length;
+  }
+
+  $('orderIsi').addEventListener('click', async (e) => {
+    const sal = e.target.closest('[data-salin]');
+    if (sal) { salin(sal.dataset.salin); return; }
+    const itb = e.target.closest('[data-item]');
+    if (itb) { bukaButir(itb.dataset.item); return; }
+    const b = e.target.closest('[data-aksi]');
+    if (!b) return;
+    const o = cariOrder(orderId);
+    if (!o) return;
+    const aksi = b.dataset.aksi;
+
+    if (aksi === 'tutup') tutup($('dlgOrder'));
+    else if (aksi === 'ship') {
+      borang({
+        tajuk: 'Dah ship dari US',
+        nota: o.no + (kiraPindahOtw(o) ? ' · ' + kiraPindahOtw(o) + ' item kastemer akan pindah ke OTW.' : ''),
+        html: medanTarikh('t', 'Tarikh ship', Date.now(), true) +
+          medanTeks('track', 'Tracking US <small>(pilihan)</small>', o.trackUS, ' maxlength="60" placeholder="FedEx / USPS" data-fokus'),
+        simpan: 'Simpan',
+        hantar(f) {
+          if (!f.t.value) return 'Isi tarikh.';
+          o.tShip = dariInput(f.t.value);
+          o.trackUS = f.track.value.trim().slice(0, 60);
+          simpan();
+          toast(o.no + ' dah ship.' + (kiraPindahOtw(o) ? ' Item kastemer kini dalam OTW.' : ''));
+          return '';
+        },
+      });
+    } else if (aksi === 'declare' || aksi === 'hub') {
+      const kunci = aksi === 'declare' ? 'tDeclare' : 'tHub';
+      o[kunci] = o[kunci] ? null : Date.now();
+      simpan();
+      segarSemua();
+    } else if (aksi === 'kotak') {
+      pilihKotak([o.id]);
+    } else if (aksi === 'bukaKotak') {
+      bukaKotak(o.kotakId);
+    } else if (aksi === 'pair') {
+      borang({
+        tajuk: 'Pair item dengan ' + o.no,
+        nota: 'Tanda item yang ada dalam order ini. Item yang dah dipairkan dengan order lain tak disenaraikan.',
+        html: senaraiPilih('item', pilihanItem(o)),
+        hantar(f) {
+          const pilih = new Set(nilaiPilih(f, 'item'));
+          data.items.forEach((it) => {
+            if (pilih.has(it.id)) it.orderId = o.id;
+            else if (it.orderId === o.id && !it.arkib) it.orderId = null;
+          });
+          simpan();
+          toast(pilih.size + ' item dalam ' + o.no + '.');
+          return '';
+        },
+      });
+    } else if (aksi === 'itemBaru') {
+      bukaBorang(null, { orderId: o.id });
+    } else if (aksi === 'edit') {
+      borangOrder(o);
+    } else if (aksi === 'padam') {
+      const ok = await sahkan({
+        tajuk: 'Padam order ' + o.no + '?',
+        teks: 'Item dalam order ini tak dipadam; ia cuma tak lagi dipairkan dengan order.',
+        ya: 'Padam', bahaya: true,
+      });
+      if (!ok) return;
+      itemOrder(o).forEach((it) => { it.orderId = null; });
+      data.orders = data.orders.filter((x) => x !== o);
+      simpan();
+      tutup($('dlgOrder'));
+      segarSemua();
+      toast('Order ' + o.no + ' dipadam.');
+    }
+  });
+
+  /* ---------- Pair item dari skrin item ---------- */
+
+  function pairItem(it) {
+    const ords = data.orders.filter((o) => !orderSelesai(o)).sort((a, b) => b.tBeli - a.tBeli);
+    const pilihan = ords.map((o) => ({
+      nilai: o.id, label: o.no + (o.akaun ? ' · ' + o.akaun : ''),
+      sub: labelOrder(o) + ' · ' + itemOrder(o).length + ' item · dibeli ' + tarikh(o.tBeli),
+    }));
+    pilihan.push({ nilai: '__baru', label: '+ Order baru', sub: 'Isi no. order Mattel sekarang', pilih: !ords.length });
+    borang({
+      tajuk: 'Pair ' + labelItem(it),
+      html: senaraiPilih('order', pilihan, 'radio'),
+      simpan: 'Pilih',
+      hantar(f) {
+        const v = nilaiPilih(f, 'order')[0];
+        if (!v) return 'Pilih satu order.';
+        if (v === '__baru') { setTimeout(() => borangOrder(null, { item: it.id }), 0); return ''; }
+        it.orderId = v;
+        simpan();
+        toast(labelItem(it) + ' dipairkan dengan ' + cariOrder(v).no + '.');
+        return '';
+      },
+    });
+  }
+
+  /* ---------- Kotak ---------- */
+
+  const orderLayakKotak = (k) => data.orders.filter((o) => (k && o.kotakId === k.id) || (!o.kotakId && peringkat(o) === 'ship'));
+
+  function pilihanOrderKotak(k, tanda) {
+    return orderLayakKotak(k).sort((a, b) => a.tBeli - b.tBeli).map((o) => ({
+      nilai: o.id,
+      label: o.no + (o.akaun ? ' · ' + o.akaun : ''),
+      sub: labelOrder(o) + ' · ' + itemOrder(o).length + ' item',
+      pilih: (k && o.kotakId === k.id) || (tanda || []).includes(o.id),
+    }));
+  }
+
+  function masukKotak(ids, k) {
+    ids.forEach((id) => {
+      const o = cariOrder(id);
+      if (!o) return;
+      o.kotakId = k.id;
+      if (!o.tShip) o.tShip = Date.now();
+      if (!o.tHub) o.tHub = Date.now();
+    });
+  }
+
+  // Dari skrin order: pilih kotak yang belum dipost, atau kotak baru.
+  function pilihKotak(ids) {
+    const terbuka = data.kotak.filter((k) => !k.tPost).sort((a, b) => b.dibuat - a.dibuat);
+    if (!terbuka.length) { borangKotak(null, ids); return; }
+    const pilihan = terbuka.map((k) => ({ nilai: k.id, label: namaKotak(k), sub: orderKotak(k).length + ' order', pilih: false }));
+    pilihan.push({ nilai: '__baru', label: '+ Kotak baru', sub: 'Consolidate baru di Buyandship' });
+    pilihan[0].pilih = true;
+    borang({
+      tajuk: 'Masuk kotak',
+      html: senaraiPilih('kotak', pilihan, 'radio'),
+      simpan: 'Pilih',
+      hantar(f) {
+        const v = nilaiPilih(f, 'kotak')[0];
+        if (!v) return 'Pilih satu kotak.';
+        if (v === '__baru') { setTimeout(() => borangKotak(null, ids), 0); return ''; }
+        const k = cariKotak(v);
+        masukKotak(ids, k);
+        simpan();
+        toast('Masuk ' + namaKotak(k) + '.');
+        return '';
+      },
+    });
+  }
+
+  function borangKotak(k, tanda) {
+    let html = medanTeks('no', 'Nama / no. Buyandship <small>(pilihan)</small>', k ? k.no : '', ' maxlength="40" placeholder="Kotak ' + tarikh(Date.now()) + '"');
+    if (k) {
+      html += medanTarikh('tPost', 'Tarikh post ke MY', k.tPost) +
+        medanTeks('trackMY', 'Tracking MY <small>(pilihan)</small>', k.trackMY, ' maxlength="60"') +
+        medanTarikh('tSampai', 'Tarikh sampai MY', k.tSampai);
+    }
+    html += '<label class="medan">Kos shipping (RM) <small>(rekod sahaja)</small><input name="kos" type="number" inputmode="decimal" min="0" step="0.01" value="' + (k && k.kos !== null ? k.kos : '') + '"></label>' +
+      '<label class="medan">Catatan <small>(pilihan)</small><textarea name="catatan" rows="2" maxlength="300">' + esc(k ? k.catatan : '') + '</textarea></label>' +
+      '<h3>Order dalam kotak</h3><p class="nota">Order yang dah ship dari US dan belum masuk kotak lain.</p>' + senaraiPilih('order', pilihanOrderKotak(k, tanda));
+    borang({
+      tajuk: k ? 'Edit kotak' : 'Kotak baru',
+      html,
+      hantar(f) {
+        const ids = nilaiPilih(f, 'order');
+        const nilai = { no: f.no.value.trim(), kos: f.kos.value === '' ? null : f.kos.value, catatan: f.catatan.value.trim() };
+        if (k) {
+          Object.assign(nilai, { tPost: tarikhAtauNull(f.tPost.value), trackMY: f.trackMY.value.trim(), tSampai: tarikhAtauNull(f.tSampai.value) });
+          if (nilai.tSampai && !nilai.tPost) return 'Isi tarikh post dulu sebelum tarikh sampai.';
+          Object.assign(k, bersihKotak(Object.assign({}, k, nilai)));
+          data.orders.forEach((o) => { if (o.kotakId === k.id && !ids.includes(o.id)) o.kotakId = null; });
+          masukKotak(ids, k);
+          simpan();
+          toast('Kotak disimpan.');
+        } else {
+          if (!ids.length) return 'Tanda sekurang-kurangnya satu order.';
+          const baru = bersihKotak(Object.assign(nilai, { id: idBaru(), dibuat: Date.now() }));
+          data.kotak.push(baru);
+          masukKotak(ids, baru);
+          simpan();
+          toast(namaKotak(baru) + ' dibuat dengan ' + ids.length + ' order.');
+        }
+        return '';
+      },
+    });
+  }
+
+  let kotakId = null;
+  function bukaKotak(id) {
+    kotakId = id;
+    if (paparKotakButir()) buka($('dlgKotak'));
+  }
+
+  function paparKotakButir() {
+    const k = cariKotak(kotakId);
+    if (!k) { tutup($('dlgKotak')); return false; }
+    const ords = orderKotak(k);
+    const its = ords.reduce((a, o) => a.concat(itemOrder(o)), []);
+    const kastemer = its.filter((it) => it.kat !== 'personal' && !it.arkib);
+
+    let html = '<div class="butir-kepala"><h2>' + esc(namaKotak(k)) + '</h2><span class="pil-tahap t-' + tahapKotak(k) + '">' + labelKotak(k) + '</span></div>';
+    html += '<p class="butir-sub">' + ords.length + ' order · ' + its.length + ' item' + (k.kos !== null ? ' · kos shipping ' + rm(k.kos) : '') + '</p>';
+
+    html += '<div class="grid-aksi">';
+    if (!k.tPost) html += '<button class="btn utama penuh" type="button" data-aksi="post">Dah post ke MY</button>';
+    else if (!k.tSampai) html += '<button class="btn hijau penuh" type="button" data-aksi="sampai">Dah sampai MY</button>';
+    html += '</div>';
+
+    html += garisMasa([
+      { label: 'Kotak dibuat', t: k.dibuat },
+      { label: 'Dipost ke MY', t: k.tPost, sub: k.trackMY ? esc(k.trackMY) : '', salin: k.trackMY },
+      { label: 'Sampai MY', t: k.tSampai, sub: k.tSampai && k.tPost ? bilHari(k.tPost, k.tSampai) + ' hari perjalanan' : '' },
+    ]);
+    if (k.catatan) html += '<div class="catatan-penuh">' + esc(k.catatan) + '</div>';
+
+    html += '<h3>Order (' + ords.length + ')</h3>';
+    html += ords.length ? ords.map((o) => '<button type="button" class="item-mini boleh" data-order="' + esc(o.id) + '"><span class="tahap-titik t-' + peringkat(o) + '"></span>' +
+      '<span class="isi">' + esc(o.no) + '<small>' + esc(ringkasItemOrder(o)) + '</small></span><span class="anak">›</span></button>').join('')
+      : '<p class="nota">Tiada order dalam kotak ini.</p>';
+    if (k.tSampai && kastemer.length) html += '<p class="nota" style="margin-top:10px">' + kastemer.length + ' item kastemer belum diserah.</p>';
+
+    html += '<div class="grid-aksi" style="margin-top:10px"><button class="btn" type="button" data-aksi="edit">Edit / urus order</button>' +
+      '<button class="btn bahaya" type="button" data-aksi="padam">Padam kotak</button></div>';
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-aksi="tutup">Tutup</button></div>';
+    $('kotakIsi').innerHTML = html;
+    return true;
+  }
+
+  $('kotakIsi').addEventListener('click', async (e) => {
+    const sal = e.target.closest('[data-salin]');
+    if (sal) { salin(sal.dataset.salin); return; }
+    const ob = e.target.closest('[data-order]');
+    if (ob) { bukaOrder(ob.dataset.order); return; }
+    const b = e.target.closest('[data-aksi]');
+    if (!b) return;
+    const k = cariKotak(kotakId);
+    if (!k) return;
+    const aksi = b.dataset.aksi;
+    if (aksi === 'tutup') tutup($('dlgKotak'));
+    else if (aksi === 'post') {
+      borang({
+        tajuk: 'Dah post ke MY',
+        nota: namaKotak(k) + ' · ' + orderKotak(k).length + ' order',
+        html: medanTarikh('t', 'Tarikh post', Date.now(), true) +
+          medanTeks('track', 'Tracking MY <small>(pilihan)</small>', k.trackMY, ' maxlength="60" data-fokus'),
+        hantar(f) {
+          if (!f.t.value) return 'Isi tarikh.';
+          k.tPost = dariInput(f.t.value);
+          k.trackMY = f.track.value.trim().slice(0, 60);
+          simpan();
+          toast(namaKotak(k) + ' dipost ke MY.');
+          return '';
+        },
+      });
+    } else if (aksi === 'sampai') {
+      borang({
+        tajuk: 'Dah sampai MY',
+        nota: namaKotak(k),
+        html: medanTarikh('t', 'Tarikh sampai', Date.now(), true),
+        hantar(f) {
+          if (!f.t.value) return 'Isi tarikh.';
+          k.tSampai = dariInput(f.t.value);
+          simpan();
+          const n = orderKotak(k).reduce((j, o) => j + itemOrder(o).filter((it) => it.kat !== 'personal' && !it.arkib).length, 0);
+          toast('Sampai MY.' + (n ? ' ' + n + ' item kastemer sedia diserah.' : ''));
+          return '';
+        },
+      });
+    } else if (aksi === 'edit') {
+      borangKotak(k);
+    } else if (aksi === 'padam') {
+      const ok = await sahkan({
+        tajuk: 'Padam ' + namaKotak(k) + '?',
+        teks: 'Order dalam kotak ini tak dipadam; ia kembali ke peringkat "Ship dari US".',
+        ya: 'Padam', bahaya: true,
+      });
+      if (!ok) return;
+      orderKotak(k).forEach((o) => { o.kotakId = null; });
+      data.kotak = data.kotak.filter((x) => x !== k);
+      simpan();
+      tutup($('dlgKotak'));
+      segarSemua();
+      toast('Kotak dipadam.');
+    }
+  });
+
   /* ---------- Bayaran ---------- */
 
   let bayarId = null;
@@ -584,12 +1298,21 @@
     $('medanBayarAwal').firstChild.textContent = (kat === 'personal' ? 'Aku dah bayar' : 'Dah bayar') + ' (RM)';
   }
 
-  function bukaBorang(it) {
+  function isiPilihOrder(semasa) {
+    const ords = data.orders.filter((o) => !orderSelesai(o) || o.id === semasa).sort((a, b) => b.tBeli - a.tBeli);
+    $('pilihOrder').innerHTML = '<option value="">Tiada / belum order</option>' + ords.map((o) =>
+      '<option value="' + esc(o.id) + '">' + esc(o.no) + ' · ' + esc(labelOrder(o)) + '</option>').join('');
+    $('pilihOrder').value = semasa || '';
+  }
+
+  function bukaBorang(it, opt) {
+    opt = opt || {};
     const f = $('borang');
     f.reset();
     editId = it ? it.id : null;
     isiSenaraiOrang();
-    const kat = it ? it.kat : (tetapan.tab === 'arkib' ? 'tunggu' : tetapan.tab);
+    isiPilihOrder(it ? it.orderId : opt.orderId);
+    const kat = it ? it.kat : (tetapan.tab === 'arkib' || tetapan.tab === 'order' ? 'tunggu' : tetapan.tab);
     f.kat.value = kat;
     labelBorang(kat);
     $('borangTajuk').textContent = it ? 'Edit item' : 'Tambah item';
@@ -640,6 +1363,7 @@
       harga: f.harga.value,
       modal: f.kat.value === 'personal' || f.modal.value === '' ? null : f.modal.value,
       catatan: f.catatan.value.trim(),
+      orderId: f.orderId.value || null,
     };
     if (editId) {
       const it = cariItem(editId);
@@ -662,13 +1386,13 @@
       data.items.push(it);
       simpan();
       tutup($('dlgBorang'));
-      if (tetapan.tab !== it.kat) { tetapan.tab = it.kat; simpanTetapan(); }
-      papar();
+      if (!$('dlgOrder').open && tetapan.tab !== it.kat) { tetapan.tab = it.kat; simpanTetapan(); }
+      segarSemua();
       toast(it.nama + ' ditambah ke ' + KAT[it.kat].nama + '.');
     }
   });
 
-  $('btnTambah').addEventListener('click', () => bukaBorang(null));
+  $('btnTambah').addEventListener('click', () => (tetapan.tab === 'order' ? borangOrder(null) : bukaBorang(null)));
   $('btnTambahMula').addEventListener('click', () => bukaBorang(null));
 
   /* ---------- Kastemer ---------- */
@@ -793,7 +1517,7 @@
   /* ---------- Simpan salinan dan import ---------- */
 
   $('btnEksport').addEventListener('click', () => {
-    const isi = JSON.stringify({ app: 'diecast', v: 1, disimpan: Date.now(), diubah: data.diubah, items: data.items, bank: data.bank }, null, 1);
+    const isi = JSON.stringify({ app: 'diecast', v: 1, disimpan: Date.now(), diubah: data.diubah, items: data.items, orders: data.orders, kotak: data.kotak, bank: data.bank }, null, 1);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([isi], { type: 'application/json' }));
     a.download = 'diecast-salinan-' + tarikhInput() + '.json';
@@ -825,11 +1549,19 @@
     }
     if (cara === 'ganti') {
       data.items = baru.items;
+      data.orders = baru.orders;
+      data.kotak = baru.kotak;
       if (baru.bank) data.bank = baru.bank;
     } else {
       baru.items.forEach((it) => {
         const i = data.items.findIndex((x) => x.id === it.id);
         if (i >= 0) data.items[i] = it; else data.items.push(it);
+      });
+      [['orders', baru.orders], ['kotak', baru.kotak]].forEach(([k, senarai]) => {
+        senarai.forEach((x) => {
+          const i = data[k].findIndex((y) => y.id === x.id);
+          if (i >= 0) data[k][i] = x; else data[k].push(x);
+        });
       });
       if (!data.bank && baru.bank) data.bank = baru.bank;
     }
@@ -960,7 +1692,7 @@
     }
   }
 
-  const isiFail = () => JSON.stringify({ app: 'diecast', v: 1, diubah: data.diubah, items: data.items, bank: data.bank });
+  const isiFail = () => JSON.stringify({ app: 'diecast', v: 1, diubah: data.diubah, items: data.items, orders: data.orders, kotak: data.kotak, bank: data.bank });
 
   async function tulisJauh() {
     if (selaras.fid) {

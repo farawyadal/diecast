@@ -68,6 +68,7 @@ try {
       <button type="button" role="tab" data-kat="personal">Personal <span class="kira" data-kira="personal"></span></button>
       <button type="button" role="tab" data-kat="otw">OTW <span class="kira" data-kira="otw"></span></button>
       <button type="button" role="tab" data-kat="tunggu">Belum Ship <span class="kira" data-kira="tunggu"></span></button>
+      <button type="button" role="tab" data-kat="order">Order <span class="kira" data-kira="order"></span></button>
       <button type="button" role="tab" data-kat="arkib">Arkib <span class="kira" data-kira="arkib"></span></button>
     </nav>
 
@@ -78,12 +79,7 @@ try {
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
         <input id="cari" type="search" placeholder="Cari item atau nama" autocomplete="off" enterkeyhint="search">
       </label>
-      <div class="cip" id="cip" role="group" aria-label="Tapis status">
-        <button type="button" data-status="semua" class="aktif">Semua</button>
-        <button type="button" data-status="belum"><i class="titik s-belum"></i>Belum bayar</button>
-        <button type="button" data-status="depo"><i class="titik s-depo"></i>Depo</button>
-        <button type="button" data-status="lunas"><i class="titik s-lunas"></i>Dah bayar</button>
-      </div>
+      <div class="cip" id="cip" role="group" aria-label="Tapis"></div>
     </div>
   </div>
 
@@ -103,7 +99,7 @@ try {
 
 <button class="fab" id="btnTambah" type="button" aria-label="Tambah item">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-  <span>Tambah item</span>
+  <span id="fabTeks">Tambah item</span>
 </button>
 
 <!-- Butiran item -->
@@ -141,6 +137,10 @@ try {
       </label>
     </div>
 
+    <label class="medan">Order Mattel <small>(pilihan · item kastemer ikut status order)</small>
+      <select name="orderId" id="pilihOrder"></select>
+    </label>
+
     <label class="medan">No. telefon <small>(pilihan)</small>
       <input name="tel" type="tel" inputmode="tel" placeholder="+60 12-345 6789" maxlength="30">
     </label>
@@ -169,6 +169,21 @@ try {
       <button class="btn utama" type="submit" id="borangSimpan">Simpan</button>
     </div>
   </form>
+</dialog>
+
+<!-- Butiran order -->
+<dialog id="dlgOrder" class="helai">
+  <div class="helai-isi" id="orderIsi"></div>
+</dialog>
+
+<!-- Butiran kotak -->
+<dialog id="dlgKotak" class="helai">
+  <div class="helai-isi" id="kotakIsi"></div>
+</dialog>
+
+<!-- Borang umum: order, kotak, langkah peringkat -->
+<dialog id="dlgForm" class="helai">
+  <form id="formX" class="helai-isi" method="dialog" autocomplete="off" novalidate></form>
 </dialog>
 
 <!-- Tambah bayaran -->
@@ -254,6 +269,7 @@ try {
   <option value="MB"><option value="POP RACE"><option value="MINI GT"><option value="OTHERS">
 </datalist>
 <datalist id="senaraiOrang"></datalist>
+<datalist id="senaraiAkaun"><option value="fa.rawyadal"><option value="assamani83"></datalist>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden>
   <span id="toastTeks"></span>
