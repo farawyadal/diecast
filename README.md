@@ -29,7 +29,13 @@ Kos sebenar setiap item:
 
 Untung = harga jual − kos sebenar. Laporan ikut bulan ada dalam tiga titik > **Untung rugi**.
 
-Kadar tukaran boleh diisi terus (RM per US$), atau isi jumlah yang dicaj kad (RM) dan app kira kadarnya.
+Kadar tukaran diambil sendiri ikut **tarikh beli** order (kadar pasaran USD→MYR dari Frankfurter/ECB; hujung minggu guna hari bekerja sebelumnya). Kalau nak lebih tepat:
+
+- isi **jumlah dicaj kad (RM)** dan app kira kadar sebenar, atau
+- tetapkan **Caj tukaran kad (%)** dalam Tetapan supaya kadar pasaran ditambah sedikit, atau
+- taip kadar sendiri.
+
+Order lama: buka order dan tekan **Guna kadar pasaran (tarikh)**.
 
 ## Data dari versi lama
 

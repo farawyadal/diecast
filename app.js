@@ -169,6 +169,7 @@
       mata,
       kadar: mata === 'RM' ? 1 : (nomborAtauNull(x.kadar) === null ? null : Math.round(Number(x.kadar) * 10000) / 10000),
       ship: nomborAtauNull(x.ship) || 0,         // shipping + tax order, dalam mata wang order
+      kadarNota: String(x.kadarNota || '').slice(0, 80), // dari mana kadar datang
       catatan: String(x.catatan || '').slice(0, 300),
       dibuat: Number(x.dibuat) || Date.now(),
     };
@@ -247,13 +248,14 @@
       hantar: (Array.isArray(j.hantar) ? j.hantar : []).map(bersihHantar).filter(Boolean),
       bank: String(j.bank || '').slice(0, 300),
       kadar: nomborAtauNull(j.kadar) === null ? null : Math.round(Number(j.kadar) * 10000) / 10000,
+      markup: nomborAtauNull(j.markup) || 0,      // caj tukaran kad (%) atas kadar pasaran
     };
     return d;
   }
 
   const eksportData = () => ({
     app: 'diecast', v: 2, diubah: data.diubah, items: data.items, orders: data.orders, kotak: data.kotak,
-    hantar: data.hantar, bank: data.bank, kadar: data.kadar,
+    hantar: data.hantar, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
   });
 
   function muat() {
@@ -917,12 +919,104 @@
     return { jenis: q('jenis'), nama: q('nama').trim(), qty: q('qty'), beli: q('beli'), orang: q('orang').trim(), harga: q('harga') };
   }
 
+  /* ---------- Kadar tukaran ikut tarikh ---------- */
+
+  // Kadar pasaran USD->MYR pada tarikh order. Sumber utama Frankfurter (data ECB; hujung minggu
+  // guna hari bekerja sebelumnya), sandaran currency-api di jsDelivr. Disimpan supaya tak ambil dua kali.
+  const KUNCI_KADAR = 'diecast-kadar';
+  let cacheKadar = {};
+  try { cacheKadar = JSON.parse(localStorage.getItem(KUNCI_KADAR) || '{}') || {}; } catch (e) { cacheKadar = {}; }
+
+  async function kadarPasaran(t) {
+    const hariIni = tarikhInput();
+    const minta = t > hariIni ? hariIni : t;
+    if (cacheKadar[minta]) return cacheKadar[minta];
+    const cuba = [
+      async () => {
+        const r = await fetch('https://api.frankfurter.dev/v1/' + minta + '?from=USD&to=MYR');
+        if (!r.ok) throw new Error(r.status);
+        const j = await r.json();
+        return { kadar: j.rates.MYR, tarikh: j.date };
+      },
+      async () => {
+        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@' + minta + '/v1/currencies/usd.min.json');
+        if (!r.ok) throw new Error(r.status);
+        const j = await r.json();
+        return { kadar: j.usd.myr, tarikh: j.date || minta };
+      },
+    ];
+    for (const fn of cuba) {
+      try {
+        const h = await fn();
+        if (h && Number(h.kadar) > 0) {
+          const hasil = { kadar: Math.round(Number(h.kadar) * 10000) / 10000, tarikh: h.tarikh };
+          // Tarikh hari ini boleh berubah sepanjang hari; simpan hanya tarikh lepas.
+          if (minta < hariIni) {
+            cacheKadar[minta] = hasil;
+            try { localStorage.setItem(KUNCI_KADAR, JSON.stringify(cacheKadar)); } catch (e) { /* tak penting */ }
+          }
+          return hasil;
+        }
+      } catch (e) { /* cuba sumber seterusnya */ }
+    }
+    return null;
+  }
+
+  const denganMarkup = (k) => Math.round(k * (1 + (data.markup || 0) / 100) * 10000) / 10000;
+  function notaPasaran(h) {
+    const d = dariInput(h.tarikh);
+    return 'Pasaran ' + tarikh(d) + (data.markup ? ' + ' + data.markup + '% kad' : '');
+  }
+
+  // Isi medan kadar ikut tarikh beli. Berhenti isi sendiri bila kadar ditaip sendiri.
+  function pasangKadarAuto(f, adaKadar) {
+    const inp = f.kadar;
+    const nota = f.querySelector('#kadarNota');
+    let manual = !!adaKadar;
+    let giliran = 0;
+    const tulis = (t) => { nota.innerHTML = t; };
+    async function ambil(paksa) {
+      if (f.mata.value !== 'USD') return;
+      if (manual && !paksa) {
+        tulis('<button type="button" class="pautan" data-kadar-auto>Guna kadar pasaran tarikh order</button>');
+        return;
+      }
+      const n = ++giliran;
+      tulis('Mengambil kadar ' + tarikh(dariInput(f.tBeli.value)) + '…');
+      const h = await kadarPasaran(f.tBeli.value || tarikhInput());
+      if (n !== giliran) return;
+      if (!h) { tulis('Tak dapat ambil kadar (tiada internet?). Taip sendiri, atau isi jumlah dicaj kad.'); return; }
+      const k = denganMarkup(h.kadar);
+      inp.value = k;
+      inp.dataset.auto = String(k);
+      inp.dataset.nota = notaPasaran(h);
+      manual = false;
+      tulis('US$1 = RM' + h.kadar + ' pada ' + tarikh(dariInput(h.tarikh)) + (data.markup ? ', + ' + data.markup + '% caj kad = RM' + k : '') +
+        '. Kadar kad sebenar mungkin lebih tinggi sikit; untuk tepat, isi jumlah dicaj kad.');
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    inp.addEventListener('input', (e) => { if (e.isTrusted) { manual = true; delete inp.dataset.auto; tulis('Kadar ditaip sendiri. <button type="button" class="pautan" data-kadar-auto>Guna kadar pasaran</button>'); } });
+    f.tBeli.addEventListener('change', () => ambil(false));
+    f.mata.addEventListener('change', () => ambil(false));
+    nota.addEventListener('click', (e) => { if (e.target.closest('[data-kadar-auto]')) ambil(true); });
+    ambil(false);
+  }
+
+  // Nota sumber kadar bila order disimpan.
+  function sumberKadar(f, kadar) {
+    if (f.mata.value !== 'USD' || !kadar) return '';
+    if (nomborAtauNull(f.caj.value)) return 'Dari caj kad RM' + bulat(f.caj.value);
+    if (f.kadar.dataset.auto && Number(f.kadar.dataset.auto) === Number(kadar)) return f.kadar.dataset.nota || 'Pasaran';
+    return 'Ditaip sendiri';
+  }
+
   function medanKadar(o) {
     const mata = o ? o.mata : 'USD';
     return '<div class="dua"><label class="medan kecil">Mata wang<select name="mata"><option value="USD"' + (mata === 'USD' ? ' selected' : '') + '>USD</option>' +
       '<option value="RM"' + (mata === 'RM' ? ' selected' : '') + '>RM</option></select></label>' +
       '<label class="medan" data-kadar>Kadar (RM per US$)<input name="kadar" type="number" inputmode="decimal" min="0" step="0.0001" placeholder="contoh 4.25" value="' +
-      esc(o ? (o.mata === 'USD' && o.kadar ? o.kadar : '') : (data.kadar >= 2 && data.kadar <= 10 ? data.kadar : '')) + '"></label></div>' +
+      esc(o ? (o.mata === 'USD' && o.kadar ? o.kadar : '') : '') + '"></label></div>' +
+      '<p class="nota nota-kadar" data-kadar id="kadarNota"></p>' +
       '<label class="medan"><span data-label-ship>Shipping + tax order (US$)</span><input name="ship" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(o && o.ship ? o.ship : '') + '"></label>' +
       '<label class="medan" data-kadar>Atau: jumlah dicaj kad (RM) <small>(pilihan · app kira kadar sendiri)</small><input name="caj" type="number" inputmode="decimal" min="0" step="0.01"></label>';
   }
@@ -969,7 +1063,7 @@
         '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item</button>' +
         '<p class="nota" id="jumlahOrder"></p>',
       simpan: 'Simpan order',
-      lepas: (f) => { gunaMata(f); kiraJumlahOrder(f); },
+      lepas: (f) => { gunaMata(f); kiraJumlahOrder(f); pasangKadarAuto(f, false); },
       hantar(f) {
         const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((b) => b.nama);
         if (!baris.length) return 'Isi sekurang-kurangnya satu item.';
@@ -981,7 +1075,7 @@
         if (salah) return salah;
         const o = bersihOrder({
           id: idBaru(), kedai: f.kedai.value, no: f.no.value, akaun: f.akaun.value, tBeli: dariInput(f.tBeli.value),
-          mata: f.mata.value, kadar, ship: f.ship.value, dibuat: Date.now(),
+          mata: f.mata.value, kadar, ship: f.ship.value, kadarNota: sumberKadar(f, kadar), dibuat: Date.now(),
         });
         ubah(() => {
           data.orders.push(o);
@@ -1081,8 +1175,9 @@
       '<div><span>Harga barang</span><b>' + wang(asal, s) + '</b></div>' +
       '<div><span>Shipping + tax</span><b>' + wang(o.ship, s) + '</b></div>' +
       '<div><span>Jumlah</span><b>' + wang(asal + o.ship, s) + (o.mata === 'USD' && o.kadar ? ' = ' + rm((asal + o.ship) * o.kadar) : '') + '</b></div>' +
-      (o.mata === 'USD' ? '<div><span>Kadar</span><b>' + (o.kadar ? 'US$1 = RM' + o.kadar + (o.kadar < 2 || o.kadar > 10 ? ' <span class="tag-amaran">Salah? Edit order</span>' : '') : '<span class="tag-amaran">Belum diisi</span>') + '</b></div>' : '') +
+      (o.mata === 'USD' ? '<div><span>Kadar' + (o.kadarNota ? ' · ' + esc(o.kadarNota) : '') + '</span><b>' + (o.kadar ? 'US$1 = RM' + o.kadar + (o.kadar < 2 || o.kadar > 10 ? ' <span class="tag-amaran">Salah?</span>' : '') : '<span class="tag-amaran">Belum diisi</span>') + '</b></div>' : '') +
       '</div>';
+    if (o.mata === 'USD') html += '<button type="button" class="btn kecil" data-aksi="kadarAuto" style="margin-bottom:10px">Guna kadar pasaran ' + tarikh(o.tBeli) + '</button>';
     if (tiadaBeli) html += '<p class="nota">' + tiadaBeli + ' item belum ada harga beli. Ketuk item dan Edit untuk isi.</p>';
     html += '<p class="nota">Shipping dibahagi ikut harga beli setiap item.</p>';
     if (o.catatan) html += '<div class="catatan-penuh">' + esc(o.catatan) + '</div>';
@@ -1110,6 +1205,14 @@
     else if (a === 'declare') borangDeclare(itemOrder(o).filter((it) => peringkat(it) === 'beli').map((it) => it.id));
     else if (a === 'item') borangItem(null, { orderId: o.id, kat: 'jual' });
     else if (a === 'edit') borangOrder(o);
+    else if (a === 'kadarAuto') {
+      b.disabled = true;
+      b.textContent = 'Mengambil kadar…';
+      const h = await kadarPasaran(tarikhInput(o.tBeli));
+      if (!h) { toast('Tak dapat ambil kadar. Semak internet.'); paparOrder(); return; }
+      const k = denganMarkup(h.kadar);
+      ubah(() => { o.kadar = k; o.kadarNota = notaPasaran(h); }, 'Kadar US$1 = RM' + k + ' (' + tarikh(dariInput(h.tarikh)) + ').');
+    }
     else if (a === 'padam') {
       const ok = await sahkan({ tajuk: 'Padam order ' + (o.no || '') + '?', teks: 'Item dalam order ini tak dipadam. Ia cuma tak lagi ada harga beli dari order ini.', ya: 'Padam', bahaya: true });
       if (!ok) return;
@@ -1139,6 +1242,8 @@
         };
         f.querySelectorAll('input, select').forEach((el) => el.addEventListener('input', segar));
         segar();
+        const salah = o.mata === 'USD' && (!o.kadar || o.kadar < 2 || o.kadar > 10);
+        pasangKadarAuto(f, !salah);
       },
       hantar(f) {
         const asal = itemOrder(o).reduce((j, it) => j + (beliAsal(it) || 0), 0) + (Number(f.ship.value) || 0);
@@ -1149,6 +1254,7 @@
           Object.assign(o, bersihOrder(Object.assign({}, o, {
             kedai: f.kedai.value, akaun: f.akaun.value, no: f.no.value, tBeli: dariInput(f.tBeli.value),
             mata: f.mata.value, kadar, ship: f.ship.value, catatan: f.catatan.value.trim(),
+            kadarNota: Number(kadar) === Number(o.kadar) && !nomborAtauNull(f.caj.value) && !f.kadar.dataset.auto ? o.kadarNota : sumberKadar(f, kadar),
           })));
           if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
         }, 'Order disimpan.');
@@ -1893,6 +1999,7 @@
 
   $('btnMenu').addEventListener('click', () => {
     $('tetBank').value = data.bank || '';
+    $('tetMarkup').value = data.markup || '';
     gunaTema();
     paparTetapanSelaras();
     if (selaras.aktif) muatGis().catch(() => {});
@@ -1905,6 +2012,13 @@
     tetapan.tema = b.dataset.tema;
     simpanTetapan();
     gunaTema();
+  });
+  $('tetMarkup').addEventListener('change', (e) => {
+    const n = Math.min(10, Math.max(0, Number(e.target.value) || 0));
+    data.markup = Math.round(n * 100) / 100;
+    e.target.value = data.markup || '';
+    simpan();
+    toast(data.markup ? 'Kadar pasaran akan ditambah ' + data.markup + '% untuk order baru.' : 'Caj kad dibuang.');
   });
   $('tetBank').addEventListener('change', (e) => {
     data.bank = e.target.value.trim();
