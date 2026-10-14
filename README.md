@@ -16,6 +16,8 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 | **Hantar** | Tunggu kastemer sahkan | **Mesej** (tracking + baki), kemudian **Dah terima**. Item masuk Arkib. |
 | **Personal** | Barang aku beli dari orang lain (contoh Enal) | Tambah item, rekod bayaran aku, **Dah terima barang**. |
 
+**Leret kad:** ke kanan = rekod bayaran penuh (apps tanya dulu); ke kiri = barang dah diserah, masuk Arkib (ada **Buat asal**).
+
 Ikon kotak di atas buka **Arkib**. Ikon orang buka senarai kastemer dan baki setiap orang.
 
 ## Kos dan untung

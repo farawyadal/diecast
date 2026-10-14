@@ -1192,3 +1192,43 @@ dialog::backdrop { background: var(--tirai); }
 
 .t-keHK { --tahap: color-mix(in srgb, var(--t-ship) 55%, var(--t-post)); }
 .t-hk { --tahap: color-mix(in srgb, var(--t-ship) 35%, var(--t-post)); }
+
+/* Leret kad */
+.kad-bungkus { position: relative; margin-bottom: 8px; border-radius: 14px; }
+.kad-bungkus .kad { margin-bottom: 0; position: relative; z-index: 1; touch-action: pan-y; }
+.leret-latar {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  font-weight: 800;
+  font-size: 0.9375rem;
+  color: #fff;
+}
+.sedang-leret .leret-latar { display: flex; }
+.sedang-leret[data-arah="kanan"] .leret-latar { background: var(--lunas); }
+.sedang-leret[data-arah="kiri"] .leret-latar { background: var(--utama); color: var(--utama-teks); }
+.sedang-leret[data-arah="kanan"] .l-kiri, .sedang-leret[data-arah="kiri"] .l-kanan { visibility: hidden; }
+.leret-latar span { opacity: 0.55; transition: opacity 0.12s; }
+.cukup .leret-latar span { opacity: 1; }
+.sedang-leret .kad { box-shadow: 0 4px 14px var(--bayang); user-select: none; }
+
+/* Banner log masuk */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 8px 10px 14px;
+  border-radius: 14px;
+  background: var(--utama-lembut);
+}
+.banner > div { flex: 1; min-width: 0; }
+.banner b { display: block; font-size: 0.9375rem; }
+.banner span { display: block; font-size: 0.8125rem; color: var(--dakwat-2); }
+.bar-aksi { margin-bottom: 4px; }
+
+.senarai { overflow-x: clip; }

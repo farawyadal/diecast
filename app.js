@@ -596,12 +596,83 @@
     let bawah = opt.peringkat === false ? '' : barisPeringkat(it);
     if (it.arkib) bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + '</div>';
     else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
-    return '<button type="button" class="kad st-' + (aku ? 'aku' : st) + '" data-id="' + esc(it.id) + '">' +
+    const bolehLeret = !it.arkib;
+    return '<div class="kad-bungkus"' + (bolehLeret ? ' data-leret="' + esc(it.id) + '"' : '') + '>' +
+      (bolehLeret ? '<div class="leret-latar" aria-hidden="true"><span class="l-kanan">✓ Bayar penuh</span><span class="l-kiri">Selesai · arkib ✓</span></div>' : '') +
+      '<button type="button" class="kad st-' + (aku ? 'aku' : st) + '" data-id="' + esc(it.id) + '">' +
       '<div class="kad-atas"><div class="kad-nama">' +
       (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') + esc(it.nama) +
       (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</div>' + pil + '</div>' +
       (opt.orang && !aku ? '<div class="kad-orang">' + esc(it.orang || '-') + '</div>' : '') +
-      wangH + bawah + '</button>';
+      wangH + bawah + '</button></div>';
+  }
+
+  /* ---------- Leret kad ---------- */
+
+  // Leret ke kanan: rekod bayaran penuh (ada pengesahan).
+  // Leret ke kiri: barang dah diserah, masuk Arkib (ada Buat asal).
+  let leret = null;
+  let abaikanKlik = false;
+  const JARAK_LERET = 90;
+
+  $('senarai').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('[data-leret]');
+    if (!b || e.button > 0 || e.target.closest('[data-g]')) return;
+    leret = { b, kad: b.querySelector('.kad'), x: e.clientX, y: e.clientY, dx: 0, aktif: false, id: e.pointerId };
+  });
+  $('senarai').addEventListener('pointermove', (e) => {
+    if (!leret || e.pointerId !== leret.id) return;
+    const dx = e.clientX - leret.x;
+    const dy = e.clientY - leret.y;
+    if (!leret.aktif) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        leret.aktif = true;
+        try { leret.kad.setPointerCapture(e.pointerId); } catch (err) { /* tak penting */ }
+        leret.b.classList.add('sedang-leret');
+      } else if (Math.abs(dy) > 12) { leret = null; return; }
+      else return;
+    }
+    leret.dx = dx;
+    leret.kad.style.transform = 'translateX(' + dx + 'px)';
+    leret.b.dataset.arah = dx > 0 ? 'kanan' : 'kiri';
+    leret.b.classList.toggle('cukup', Math.abs(dx) >= JARAK_LERET);
+  });
+  function tamatLeret() {
+    if (!leret) return;
+    const { b, kad, dx, aktif } = leret;
+    leret = null;
+    if (!aktif) return;
+    abaikanKlik = true;
+    setTimeout(() => { abaikanKlik = false; }, 400);
+    kad.style.transition = 'transform 0.18s ease';
+    kad.style.transform = '';
+    setTimeout(() => { kad.style.transition = ''; b.classList.remove('sedang-leret', 'cukup'); delete b.dataset.arah; }, 200);
+    const it = cariItem(b.dataset.leret);
+    if (!it || Math.abs(dx) < JARAK_LERET) return;
+    if (dx > 0) leretBayar(it); else leretArkib(it);
+  }
+  $('senarai').addEventListener('pointerup', tamatLeret);
+  $('senarai').addEventListener('pointercancel', tamatLeret);
+
+  async function leretBayar(it) {
+    const bk = baki(it);
+    if (bk <= 0) { toast(it.harga > 0 ? labelItem(it) + ' dah bayar penuh.' : labelItem(it) + ' belum ada harga.'); return; }
+    const siapa = it.kat === 'jual' ? it.orang : 'aku';
+    const ok = await sahkan({
+      tajuk: 'Bayar penuh?',
+      teks: 'Rekod bayaran baki ' + rm(bk) + ' dari ' + siapa + ' untuk ' + labelItem(it) + '.',
+      ya: 'Rekod ' + rm(bk),
+    });
+    if (!ok) return;
+    ubah(() => { it.bayaran.push({ id: idBaru(), amaun: bk, t: Date.now(), nota: 'Bayar penuh' }); }, rm(bk) + ' direkod. ' + labelItem(it) + ' dah bayar penuh.');
+  }
+
+  function leretArkib(it) {
+    ubah(() => {
+      it.arkib = Date.now();
+      const h = it.hantarId ? cariHantar(it.hantarId) : null;
+      if (h && itemHantar(h).every((x) => x.arkib)) h.tTerima = it.arkib;
+    }, labelItem(it) + (baki(it) > 0 ? ' diarkib (masih baki ' + rm(baki(it)) + ').' : ' diarkib.'));
   }
 
   // Kumpulan dalam senarai: kepala (boleh diketuk) + butang aksi + kad item.
@@ -631,6 +702,7 @@
 
   function papar() {
     paparTab();
+    $('bannerLogin').hidden = selaras.aktif || !!tetapan.tutupBanner || !data.items.length;
     const tab = tetapan.tab;
     const ada = data.items.length > 0 || data.orders.length > 0;
     $('kosongMula').hidden = ada;
@@ -646,8 +718,7 @@
 
     if (tab === 'beli') {
       html += '<div class="bar-aksi"><button type="button" class="btn kecil utama" data-g="orderCM">+ Order CM</button>' +
-        '<button type="button" class="btn kecil" data-g="senaraiOrder">Senarai order</button>' +
-        '<button type="button" class="btn kecil" data-g="declare">Declare</button></div>';
+        '<button type="button" class="btn kecil" data-g="senaraiOrder">Senarai order</button></div>';
       const kump = new Map();
       nampak.sort(urut).forEach((it) => {
         const k = it.orderId || '-';
@@ -778,6 +849,7 @@
   }
 
   $('senarai').addEventListener('click', (e) => {
+    if (abaikanKlik) { abaikanKlik = false; return; }
     const g = e.target.closest('[data-g]');
     if (g) { aksiKumpulan(g.dataset.g, g.dataset.v || ''); return; }
     const t = e.target.closest('[data-buka]');
@@ -2559,8 +2631,8 @@
   function paparTetapanSelaras() {
     const hidup = selaras.aktif;
     $('selarasNota').textContent = !hidup
-      ? 'Belum bersambung. Sambung untuk guna data yang sama di phone dan PC. Data disimpan dalam folder tersembunyi khas apps ini dalam Google Drive kau.'
-      : 'Bersambung' + (selaras.emel ? ' sebagai ' + selaras.emel : '') + '. Apps selaras sendiri selepas setiap perubahan.';
+      ? 'Belum log masuk. Log masuk dengan akaun Google yang sama di phone dan PC untuk guna data yang sama. Data disimpan dalam folder tersembunyi khas apps ini dalam Google Drive kau; orang lain (dan apps lain) tak boleh baca.'
+      : 'Log masuk' + (selaras.emel ? ' sebagai ' + selaras.emel : '') + '. Data diselaras sendiri selepas setiap perubahan.';
     $('btnSambung').hidden = hidup;
     $('btnSelarasKini').hidden = !hidup;
     $('btnPutus').hidden = !hidup;
@@ -2576,8 +2648,11 @@
     if ($('dlgMenu').open) tutup($('dlgMenu'));
     await ambilEmel();
     const hasil = await selaraskan();
-    if (hasil === 'hantar' || hasil === 'sama') toast('Google Drive bersambung.');
+    if (hasil === 'hantar' || hasil === 'sama') toast('Log masuk' + (selaras.emel ? ' sebagai ' + selaras.emel : '') + '. Data diselaras.');
+    papar();
   }
+  $('btnSambungBanner').addEventListener('click', sambungDrive);
+  $('btnTutupBanner').addEventListener('click', () => { tetapan.tutupBanner = true; simpanTetapan(); papar(); });
   $('btnSambung').addEventListener('click', sambungDrive);
   $('btnSambungMula').addEventListener('click', sambungDrive);
 

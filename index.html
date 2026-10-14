@@ -90,6 +90,12 @@ try {
     </div>
   </div>
 
+  <section class="banner" id="bannerLogin" hidden>
+    <div><b>Guna data sama di phone dan PC</b><span>Log masuk dengan Google. Data disimpan peribadi dalam Google Drive kau.</span></div>
+    <button class="btn utama kecil" id="btnSambungBanner" type="button">Log masuk</button>
+    <button class="buang" id="btnTutupBanner" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </section>
+
   <main id="senarai" class="senarai"></main>
 
   <!-- Kali pertama: tiada data -->
@@ -97,7 +103,7 @@ try {
     <h2>Selamat datang</h2>
     <p>Belum ada item. Masukkan senarai dari fail, ambil data dari Google Drive, atau mula dengan tempahan baru.</p>
     <button class="btn utama" id="btnImportMula" type="button">Import senarai</button>
-    <button class="btn" id="btnSambungMula" type="button">Ambil data dari Google Drive</button>
+    <button class="btn" id="btnSambungMula" type="button">Log masuk Google · ambil data</button>
     <button class="btn" id="btnTambahMula" type="button">Tempahan baru</button>
   </section>
 
@@ -189,13 +195,13 @@ try {
       <textarea id="tetBank" rows="3" maxlength="300" placeholder="Contoh: Sila buat bayaran kepada Maybank 5110xxxxxxx Mohd Farid Assamani."></textarea>
     </label>
 
-    <h3>Selaras Google Drive</h3>
+    <h3>Akaun Google · phone dan PC</h3>
     <p class="nota" id="selarasNota"></p>
     <p class="nota" id="selarasMasa"></p>
     <div class="baris-btn">
-      <button class="btn utama" id="btnSambung" type="button">Sambung Google Drive</button>
+      <button class="btn utama" id="btnSambung" type="button">Log masuk dengan Google</button>
       <button class="btn" id="btnSelarasKini" type="button" hidden>Selaras sekarang</button>
-      <button class="btn" id="btnPutus" type="button" hidden>Putuskan</button>
+      <button class="btn" id="btnPutus" type="button" hidden>Log keluar</button>
     </div>
 
     <h3>Data</h3>
