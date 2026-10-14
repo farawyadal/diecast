@@ -62,7 +62,7 @@ Bila app dibuka, data lama ditukar sendiri tanpa dibuang:
 | `index.html` | Muka apps |
 | `style.css` | Warna (terang dan gelap) dan susun atur |
 | `app.js` | Semua logik apps |
-| `config.js` | Client ID Google untuk selaras Google Drive (sama dengan MyBajet) |
+| `config.js` | Client ID Google (projek akaun peribadi) untuk log masuk dan selaras Google Drive |
 | `manifest.webmanifest`, `sw.js` | Supaya boleh dipasang pada telefon dan dibuka tanpa internet |
 | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Ikon apps |
 | `og-image.png` | Gambar pratonton bila pautan dikongsi di WhatsApp |
