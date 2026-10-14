@@ -1270,3 +1270,12 @@ dialog::backdrop { background: var(--tirai); }
   text-decoration: none;
 }
 .jejak:hover { text-decoration: underline; }
+
+.senarai-kos { border: 1px solid var(--garis); border-radius: 12px; margin-bottom: 10px; }
+.baris-kos { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--garis); }
+.baris-kos:last-child { border-bottom: 0; }
+.baris-kos .isi { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; padding: 0; }
+.baris-kos .isi b { display: block; font-weight: 600; font-size: 0.9375rem; }
+.baris-kos .isi small { color: var(--dakwat-2); font-size: 0.8125rem; }
+
+[data-simpan-kos] { position: sticky; bottom: 8px; z-index: 2; box-shadow: 0 4px 14px var(--bayang); }

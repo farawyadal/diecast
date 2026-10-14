@@ -165,7 +165,8 @@
       kotakId: x.kotakId ? String(x.kotakId) : null,
       hantarId: x.hantarId ? String(x.hantarId) : null,
       arkib: masaAtauNull(x.arkib),
-      lama: !!x.lama,                             // dari Excel: OTW tanpa butiran perjalanan
+      lama: !!x.lama,
+      anggaran: !!x.anggaran,                     // kos RM ialah anggaran (item lama tanpa rekod order)                             // dari Excel: OTW tanpa butiran perjalanan
     };
   }
 
@@ -1953,7 +1954,7 @@
     }
     const baris = [];
     if (o && it.beli !== null) baris.push(['Barang (' + wang(beliAsal(it), mataSimbol(o.mata)) + (o.mata === 'USD' ? ' × ' + o.kadar : '') + ')', k.barang]);
-    else baris.push(['Kos barang', k.barang]);
+    else baris.push([it.anggaran ? 'Kos barang (anggaran)' : 'Kos barang', k.barang]);
     if (k.shipCM) baris.push(['Shipping ' + (o ? o.kedai : ''), k.shipCM]);
     if (k.bns) baris.push(['Posting BNS', k.bns]);
     if (k.jnt) baris.push(['J&T', k.jnt]);
@@ -2468,13 +2469,15 @@
       baris.map((g) => '<tr><td><b>' + g.label + '</b><small>' + g.n + ' item' + (g.tak ? ' · ' + g.tak + ' tanpa kos' : '') + '</small></td><td>' + rm(g.jual) + '</td><td>' + rm(g.kos) +
         '</td><td class="' + (g.untung < 0 ? 'rugi' : 'untung') + '">' + rm(g.untung) + '</td></tr>').join('') + '</tbody></table>';
     if (tak) {
-      html += '<h3>' + tak + ' item belum ada kos</h3><p class="nota">Item ini tidak dikira. Ketuk item untuk isi kos melalui Edit, atau Tag / ubah item dalam order.</p>';
-      html += '<div>' + jual.filter((it) => !kosItem(it).lengkap).sort(urut).map((it) => {
+      html += '<h3>' + tak + ' item belum ada kos</h3><p class="nota">Isi anggaran kos beli (RM, jumlah untuk semua unit) terus di sini, kemudian tekan Simpan kos. Ketuk nama item untuk buka butirannya.</p>';
+      html += '<div class="senarai-kos">' + jual.filter((it) => !kosItem(it).lengkap).sort(urut).map((it) => {
         const o = it.orderId ? cariOrder(it.orderId) : null;
-        const sebab = !o ? 'Tiada order · isi kos RM' : it.beli === null ? 'Harga beli belum diisi · ' + (o.no || 'order') : 'Kadar order belum diisi · ' + (o.no || 'order');
-        return '<button type="button" class="item-mini boleh" data-item="' + esc(it.id) + '"><i class="titik s-' + status(it) + '"></i><span class="isi">' + esc(labelItem(it)) +
-          '<small>' + esc(it.orang) + ' · ' + esc(sebab) + '</small></span><span class="baki">' + rm(it.harga) + '</span></button>';
-      }).join('') + '</div>';
+        const sebab = !o ? 'Tiada order' : it.beli === null ? 'Harga beli belum diisi · ' + (o.no || 'order') : 'Kadar order belum diisi · ' + (o.no || 'order');
+        return '<div class="baris-kos"><button type="button" class="isi" data-item="' + esc(it.id) + '"><b>' + esc(labelItem(it)) + '</b>' +
+          '<small>' + esc(it.orang) + ' · jual ' + rm(it.harga) + ' · ' + esc(sebab) + '</small></button>' +
+          '<label class="tag-beli"><span>Kos RM</span><input type="number" inputmode="decimal" min="0" step="0.01" data-kos-anggaran="' + esc(it.id) + '"></label></div>';
+      }).join('') + '</div>' +
+        '<button type="button" class="btn utama penuh-lebar" data-simpan-kos="1">Simpan kos</button>';
     }
     html += '<p class="nota">Jumlah kos posting BNS direkod: ' + rm(kotakKos) + ' · kos J&amp;T: ' + rm(jnt) + '</p>';
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
@@ -2484,6 +2487,21 @@
     if (e.target.closest('[data-tutup]')) { tutup($('dlgPanel')); return; }
     const o = e.target.closest('[data-order]');
     if (o) { bukaOrder(o.dataset.order); return; }
+    if (e.target.closest('[data-simpan-kos]')) {
+      const isi = [...$('panelIsi').querySelectorAll('[data-kos-anggaran]')].filter((x) => x.value !== '' && Number(x.value) >= 0);
+      if (!isi.length) { toast('Isi kos sekurang-kurangnya satu item.'); return; }
+      ubah(() => {
+        isi.forEach((x) => {
+          const it = cariItem(x.dataset.kosAnggaran);
+          if (!it) return;
+          // Kos RM terus (anggaran). Harga beli dari order diketepikan supaya anggaran ini yang diguna.
+          it.modal = bulat(x.value);
+          it.beli = null;
+          it.anggaran = true;
+        });
+      }, isi.length + ' item dikemas kini dengan kos anggaran.');
+      return;
+    }
     const it = e.target.closest('[data-item]');
     if (it) bukaButir(it.dataset.item);
   });

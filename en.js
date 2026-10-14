@@ -357,6 +357,11 @@ window.DIECAST_EN = {
     'Tanda item pelanggan lain yang dihantar dalam bungkusan yang sama.': "Tick other customers' items sent in the same package.",
     'Item ini tidak dikira. Ketuk item untuk isi kos melalui Edit, atau Tag / ubah item dalam order.': 'These items are not counted. Tap an item to add its cost through Edit, or use Tag / edit items in the order.',
     'Tiada order · isi kos RM': 'No order · enter RM cost',
+    'Isi anggaran kos beli (RM, jumlah untuk semua unit) terus di sini, kemudian tekan Simpan kos. Ketuk nama item untuk buka butirannya.': 'Enter an estimated cost (RM, total for all units) here, then tap Save costs. Tap an item name to open its details.',
+    'Simpan kos': 'Save costs',
+    'Kos RM': 'Cost RM',
+    'Kos barang (anggaran)': 'Item cost (estimate)',
+    'Isi kos sekurang-kurangnya satu item.': 'Enter a cost for at least one item.',
   },
 
   frasa: [
@@ -493,6 +498,7 @@ window.DIECAST_EN = {
     [' · kos J&T: ', ' · J&T cost: '],
 
     ['^Tracking (.+)$', 'Tracking $1'],
+    ['^(\\d+) item dikemas kini dengan kos anggaran\\.$', '$1 items updated with an estimated cost.'],
     [' · tanpa tracking', ' · no tracking'],
     ['^Jejak (.+) ↗$', 'Track $1 ↗'],
     ['^Nombor (.+) disalin\\. Tampal di laman (.+)\\.$', 'Number $1 copied. Paste it on the $2 site.'],
