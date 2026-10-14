@@ -1135,3 +1135,53 @@ dialog::backdrop { background: var(--tirai); }
   font-weight: 700;
   text-decoration: underline;
 }
+
+/* Tag item pada order */
+.senarai-tag {
+  border: 1px solid var(--garis);
+  border-radius: 12px;
+  max-height: 52vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+.tag-baris {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--garis);
+}
+.tag-baris:last-child { border-bottom: 0; }
+.tag-baris > label:first-child {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.tag-baris input[type="checkbox"] { width: 20px; height: 20px; flex: none; accent-color: var(--utama); margin: 0; }
+.tag-baris b { display: block; font-weight: 600; font-size: 0.9375rem; }
+.tag-baris small { color: var(--dakwat-2); font-size: 0.8125rem; }
+.tag-baris:has(input[type="checkbox"]:checked) { background: var(--utama-lembut); }
+.tag-beli {
+  flex: 0 0 96px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--dakwat-2);
+}
+.tag-beli input {
+  width: 100%;
+  margin-top: 2px;
+  padding: 7px 8px;
+  border: 1px solid var(--garis);
+  border-radius: 8px;
+  background: var(--permukaan);
+  color: var(--dakwat);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+.tag-baris:not(:has(input[type="checkbox"]:checked)) .tag-beli { visibility: hidden; }
+.bar-aksi { gap: 6px; flex-wrap: wrap; }
+.helai-isi h3 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.orang-baris .baki small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--dakwat-2); text-align: right; }

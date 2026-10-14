@@ -10,7 +10,7 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 
 | Tab | Peringkat | Apa yang kau tekan |
 |---|---|---|
-| **Belum Ship** | Dah order, belum ship ke hub | **Order baru**: kedai, no. order, akaun, mata wang, kadar, shipping + tax, dan senarai item (item, harga beli seunit, kastemer, harga jual). *Salin baris* untuk item sama yang dijual pada ramai kastemer. Taip `AKU` untuk barang sendiri. |
+| **Belum Ship** | Tempahan kastemer, kemudian dibeli di CM | **Tempahan baru** (butang bawah): item, kastemer, harga jual, bayaran awal. Bila dah beli di CM: **+ Order CM**, isi no. order, tarikh (kadar diambil sendiri), shipping, kemudian **tag** item tempahan dan isi harga beli seunit (item sama nama diisi sendiri). **Senarai order** tunjuk semua order CHP. |
 | **OTW** | Ke hub → di hub → kotak → dipost ke MY | **Declare** (tanda item dalam satu parcel, tampal tracking US) → **Sampai hub** → **Consolidate** (kos posting BNS) → **Isi Skynet** → **Sampai MY** |
 | **Sampai** | Dah sampai, sorting ikut kastemer | **WhatsApp baki**, kemudian **Serah**: Post J&T (tracking + kos J&T) atau Hantar sendiri. Barang `AKU`: **Dah ambil**. |
 | **Hantar** | Tunggu kastemer sahkan | **Mesej** (tracking + baki), kemudian **Dah terima**. Item masuk Arkib. |

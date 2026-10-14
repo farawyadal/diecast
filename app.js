@@ -541,7 +541,7 @@
       document.querySelector('[data-kira="' + k + '"]').textContent = itemTab(k).length;
     });
     document.querySelectorAll('#cip button').forEach((b) => b.classList.toggle('aktif', b.dataset.status === tetapan.status));
-    const fab = { beli: 'Order baru', otw: 'Consolidate', luar: 'Tambah item' }[tetapan.tab];
+    const fab = { beli: 'Tempahan baru', otw: 'Consolidate', luar: 'Tambah item' }[tetapan.tab];
     $('btnTambah').hidden = !fab;
     if (fab) { $('fabTeks').textContent = fab; $('btnTambah').setAttribute('aria-label', fab); }
   }
@@ -638,7 +638,9 @@
     let html = '';
 
     if (tab === 'beli') {
-      html += '<div class="bar-aksi"><button type="button" class="btn kecil" data-g="declare">Declare parcel ke hub</button></div>';
+      html += '<div class="bar-aksi"><button type="button" class="btn kecil utama" data-g="orderCM">+ Order CM</button>' +
+        '<button type="button" class="btn kecil" data-g="senaraiOrder">Senarai order</button>' +
+        '<button type="button" class="btn kecil" data-g="declare">Declare</button></div>';
       const kump = new Map();
       nampak.sort(urut).forEach((it) => {
         const k = it.orderId || '-';
@@ -647,16 +649,16 @@
       });
       [...kump.entries()].sort((a, b) => {
         const oa = cariOrder(a[0]); const ob = cariOrder(b[0]);
-        return (oa ? oa.tBeli : Infinity) - (ob ? ob.tBeli : Infinity);
+        return (oa ? oa.tBeli : -Infinity) - (ob ? ob.tBeli : -Infinity) || 0;
       }).forEach(([k, its]) => {
         const o = cariOrder(k);
         html += htmlKumpulan({
-          tajuk: o ? labelOrder(o) : 'Tanpa order',
-          sub: o ? 'Dibeli ' + tarikh(o.tBeli) + (o.akaun ? ' · ' + esc(o.akaun) : '') + ' · ' + bilHari(o.tBeli) + ' hari' : 'Item lama dari Excel',
+          tajuk: o ? labelOrder(o) : 'Tempahan · belum beli',
+          sub: o ? 'Dibeli ' + tarikh(o.tBeli) + (o.akaun ? ' · ' + esc(o.akaun) : '') + ' · ' + bilHari(o.tBeli) + ' hari' : its.length + ' item belum ada order CM',
           buka: o ? 'order:' + o.id : '',
           items: its,
           kad: { orang: true, peringkat: false },
-          aksi: [{ g: 'declare', nilai: k, label: 'Declare' }],
+          aksi: [o ? { g: 'declare', nilai: k, label: 'Declare' } : { g: 'orderCM', nilai: '-', label: 'Order CM', kelas: 'utama' }],
         });
       });
     } else if (tab === 'otw') {
@@ -754,7 +756,7 @@
 
     if (!nampak.length) {
       const kosong = ditapis ? 'Tiada item yang padan.' : {
-        beli: 'Tiada item belum ship. Tekan Order baru bila kau beli.',
+        beli: 'Tiada tempahan. Tekan Tempahan baru bila kastemer order.',
         otw: 'Tiada barang dalam perjalanan.',
         sampai: 'Tiada barang yang sedang menunggu untuk diserah.',
         hantar: 'Tiada barang yang sedang dihantar.',
@@ -789,6 +791,8 @@
       borangDeclare(!v ? [] : v === '-' ? belum.filter((it) => !it.orderId).map((it) => it.id) : belum.filter((it) => it.orderId === v).map((it) => it.id));
     }
     else if (g === 'hub') tandaHub(v.split(','));
+    else if (g === 'orderCM') borangOrderBaru([]);
+    else if (g === 'senaraiOrder') bukaSenaraiOrder();
     else if (g === 'kotakBaru') borangKotak(null, data.items.filter((it) => peringkat(it) === 'hub').map((it) => it.id));
     else if (g === 'skynet') borangSkynet(cariKotak(v));
     else if (g === 'sampaiMY') borangSampai(cariKotak(v));
@@ -853,8 +857,8 @@
   $('formX').addEventListener('input', (e) => {
     if (!e.target.matches('[data-tapis-pilih]')) return;
     const q = e.target.value.trim().toLowerCase();
-    $('formX').querySelectorAll('.senarai-pilih label').forEach((l) => {
-      l.hidden = !!q && !l.textContent.toLowerCase().includes(q) && !l.querySelector('input:checked');
+    $('formX').querySelectorAll('.senarai-pilih label, .senarai-tag .tag-baris').forEach((l) => {
+      l.hidden = !!q && !l.textContent.toLowerCase().includes(q) && !l.querySelector('input[type="checkbox"]:checked, input[type="radio"]:checked');
     });
   });
 
@@ -901,8 +905,19 @@
 
   /* ---------- Order baru (banyak item sekali gus) ---------- */
 
-  function htmlBarisOrder(b) {
+  function htmlBarisOrder(b, tanpaBeli) {
     b = b || {};
+    if (tanpaBeli) {
+      return '<div class="baris-order" data-tanpa-beli>' +
+        '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(b.jenis || '') + '"></label>' +
+        '<label class="medan">Item<input name="nama" maxlength="80" placeholder="Contoh: Bumblebee" value="' + esc(b.nama || '') + '"></label></div>' +
+        '<div class="dua"><label class="medan kecil">Qty<input name="qty" type="number" inputmode="numeric" min="1" step="1" value="' + esc(b.qty || 1) + '"></label>' +
+        '<label class="medan">Kastemer <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label></div>' +
+        '<div class="dua"><label class="medan">Harga jual (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.harga == null ? '' : b.harga) + '"></label>' +
+        '<label class="medan">Dah bayar (RM) <small>(pilihan)</small><input name="bayar" type="number" inputmode="decimal" min="0" step="0.01" value=""></label></div>' +
+        '<div class="baris-btn"><button type="button" class="btn kecil" data-baris="salin">Salin baris</button>' +
+        '<button type="button" class="btn kecil bahaya" data-baris="buang">Buang</button></div></div>';
+    }
     return '<div class="baris-order">' +
       '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(b.jenis || '') + '"></label>' +
       '<label class="medan">Item<input name="nama" maxlength="80" placeholder="Contoh: Skyline R32" value="' + esc(b.nama || '') + '"></label></div>' +
@@ -915,8 +930,59 @@
   }
 
   function bacaBaris(el) {
-    const q = (n) => el.querySelector('[name="' + n + '"]').value;
-    return { jenis: q('jenis'), nama: q('nama').trim(), qty: q('qty'), beli: q('beli'), orang: q('orang').trim(), harga: q('harga') };
+    const q = (n) => { const x = el.querySelector('[name="' + n + '"]'); return x ? x.value : ''; };
+    return { jenis: q('jenis'), nama: q('nama').trim(), qty: q('qty'), beli: q('beli'), orang: q('orang').trim(), harga: q('harga'), bayar: q('bayar') };
+  }
+
+  /* ---------- Tag item tempahan pada order ---------- */
+
+  // Senarai item untuk ditag: setiap baris ada kotak tanda dan harga beli seunit (nampak bila ditanda).
+  function htmlTag(calon, o) {
+    if (!calon.length) return '<p class="nota kosong-kecil">Tiada item tempahan yang belum ada order. Tambah item lain di bawah, atau masukkan tempahan dulu.</p>';
+    return (calon.length > 6 ? '<input class="tapis-pilih" type="search" data-tapis-pilih placeholder="Tapis: nama item atau kastemer">' : '') +
+      '<div class="senarai-tag">' + calon.map((it) => {
+        const pilih = o && it.orderId === o.id;
+        return '<div class="tag-baris"><label><input type="checkbox" name="tag" value="' + esc(it.id) + '"' + (pilih ? ' checked' : '') + '>' +
+          '<span><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Aku' : it.orang) + ' · ' + esc(PERINGKAT[peringkat(it)]) +
+          (it.harga ? ' · jual ' + rm(it.harga) : '') + '</small></span></label>' +
+          '<label class="tag-beli"><span data-label-beli-pendek>US$ seunit</span><input type="number" inputmode="decimal" min="0" step="0.01" name="beli_' + esc(it.id) + '"' +
+          ' data-nama="' + esc(kunciOrang(it.jenis + ' ' + it.nama)) + '" data-qty="' + it.qty + '" value="' + (pilih && it.beli !== null ? it.beli : '') + '"></label></div>';
+      }).join('') + '</div>';
+  }
+
+  // Item yang boleh ditag: belum ada order (mana-mana peringkat), atau dah dalam order ini.
+  function calonTag(o) {
+    return data.items.filter((it) => it.kat !== 'luar' && !it.arkib && (!it.orderId || (o && it.orderId === o.id)))
+      .sort((a, b) => ((o && b.orderId === o.id) - (o && a.orderId === o.id)) || (peringkat(a) !== 'beli') - (peringkat(b) !== 'beli') ||
+        kunciOrang(a.jenis + a.nama).localeCompare(kunciOrang(b.jenis + b.nama)) || a.orang.localeCompare(b.orang));
+  }
+
+  function bacaTag(f) {
+    return [...f.querySelectorAll('.tag-baris')].map((row) => {
+      const cb = row.querySelector('input[name="tag"]');
+      const beli = row.querySelector('.tag-beli input');
+      return { id: cb.value, pilih: cb.checked, beli: beli.value, qty: Number(beli.dataset.qty) || 1 };
+    });
+  }
+
+  // Isi harga beli item yang sama nama sendiri, supaya tak perlu taip berulang (contoh 2 Bumblebee).
+  function pasangTag(f) {
+    const salinHarga = (sumber) => {
+      if (sumber.value === '') return;
+      f.querySelectorAll('.tag-beli input[data-nama="' + CSS.escape(sumber.dataset.nama) + '"]').forEach((x) => {
+        if (x !== sumber && x.value === '' && x.closest('.tag-baris').querySelector('input[name="tag"]').checked) x.value = sumber.value;
+      });
+    };
+    f.querySelectorAll('.tag-beli input').forEach((x) => x.addEventListener('change', () => { salinHarga(x); kiraJumlahOrder(f); }));
+    f.querySelectorAll('.tag-baris input[name="tag"]').forEach((cb) => cb.addEventListener('change', () => {
+      const beli = cb.closest('.tag-baris').querySelector('.tag-beli input');
+      if (cb.checked && beli.value === '') {
+        const kawan = [...f.querySelectorAll('.tag-beli input[data-nama="' + CSS.escape(beli.dataset.nama) + '"]')].find((x) => x !== beli && x.value !== '');
+        if (kawan) beli.value = kawan.value;
+      }
+      if (cb.checked) setTimeout(() => beli.focus(), 0);
+      kiraJumlahOrder(f);
+    }));
   }
 
   /* ---------- Kadar tukaran ikut tarikh ---------- */
@@ -1025,7 +1091,9 @@
     const usd = f.mata.value === 'USD';
     f.querySelectorAll('[data-kadar]').forEach((el) => { el.hidden = !usd; });
     const s = usd ? 'US$' : 'RM';
-    f.querySelector('[data-label-ship]').textContent = 'Shipping + tax order (' + s + ')';
+    const ls = f.querySelector('[data-label-ship]');
+    if (ls) ls.textContent = 'Shipping + tax order (' + s + ')';
+    f.querySelectorAll('[data-label-beli-pendek]').forEach((el) => { el.textContent = s + ' seunit'; });
     f.querySelectorAll('[data-label-beli]').forEach((el) => { el.textContent = 'Harga beli seunit (' + s + ')'; });
   }
 
@@ -1050,26 +1118,67 @@
     return nomborAtauNull(f.kadar.value) ? Number(f.kadar.value) : null;
   }
 
-  function borangOrderBaru() {
+  // Tempahan kastemer: masuk dulu sebelum beli dari CM.
+  function borangTempahan() {
     isiDatalistOrang();
     borang({
-      tajuk: 'Order baru',
+      tajuk: 'Tempahan baru',
+      nota: 'Barang yang kastemer tempah. Bila dah beli di CM, buat Order CM dan tag item ini.',
+      html: '<div id="barisOrder" data-tanpa-beli>' + htmlBarisOrder(null, true) + '</div>' +
+        '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item</button>',
+      simpan: 'Simpan tempahan',
+      hantar(f) {
+        const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((x) => x.nama);
+        if (!baris.length) return 'Isi sekurang-kurangnya satu item.';
+        const tiada = baris.find((x) => !x.orang);
+        if (tiada) return 'Isi kastemer untuk ' + tiada.nama + ' (taip AKU untuk barang sendiri).';
+        ubah(() => {
+          baris.forEach((x, i) => {
+            const aku = kunciOrang(x.orang) === AKU;
+            const bayar = bulat(x.bayar);
+            data.items.push(bersihItem({
+              kat: aku ? 'aku' : 'jual', jenis: x.jenis, nama: x.nama, qty: x.qty, orang: x.orang, tel: aku ? '' : telUntuk(x.orang),
+              harga: aku ? 0 : x.harga, dibuat: Date.now(), urutan: Date.now() + i,
+              bayaran: bayar && !aku ? [{ amaun: bayar, t: Date.now(), nota: 'Bayaran awal' }] : [],
+            }));
+          });
+          tetapan.tab = 'beli'; simpanTetapan();
+        }, baris.length + ' item tempahan disimpan.');
+        return '';
+      },
+    });
+  }
+
+  // Order dari CM: isi butiran order, tag item tempahan, dan (pilihan) item lain yang tiada tempahan.
+  function borangOrderBaru(tandaAwal) {
+    isiDatalistOrang();
+    const calon = calonTag(null);
+    const set = new Set(tandaAwal || []);
+    borang({
+      tajuk: 'Order CM',
       html: '<div class="dua">' + medanTeks('kedai', 'Kedai', 'Mattel Creations', ' list="senaraiKedai" maxlength="40"') +
         medanTeks('akaun', 'Akaun', tetapan.akaun || '', ' list="senaraiAkaun" maxlength="40"') + '</div>' +
-        '<div class="dua">' + medanTeks('no', 'No. order', '', ' maxlength="40" placeholder="CHP1234567" autocapitalize="characters"') +
+        '<div class="dua">' + medanTeks('no', 'No. order', '', ' maxlength="40" placeholder="CHP1234567" autocapitalize="characters" data-fokus') +
         medanTarikh('tBeli', 'Tarikh beli', Date.now(), true) + '</div>' +
         medanKadar(null) +
-        '<h3>Item dalam order</h3><div id="barisOrder">' + htmlBarisOrder() + '</div>' +
-        '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item</button>' +
+        '<h3>Tag item tempahan</h3><p class="nota">Tanda item yang dibeli dalam order ini dan isi harga beli seunit. Item sama nama diisi sendiri.</p>' +
+        htmlTag(calon, null) +
+        '<h3>Item lain <small>(tiada tempahan, contoh untuk aku)</small></h3><div id="barisOrder"></div>' +
+        '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item lain</button>' +
         '<p class="nota" id="jumlahOrder"></p>',
       simpan: 'Simpan order',
-      lepas: (f) => { gunaMata(f); kiraJumlahOrder(f); pasangKadarAuto(f, false); },
+      lepas: (f) => {
+        f.querySelectorAll('.tag-baris input[name="tag"]').forEach((cb) => { if (set.has(cb.value)) cb.checked = true; });
+        gunaMata(f); pasangTag(f); kiraJumlahOrder(f); pasangKadarAuto(f, false);
+      },
       hantar(f) {
-        const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((b) => b.nama);
-        if (!baris.length) return 'Isi sekurang-kurangnya satu item.';
-        const tiadaOrang = baris.find((b) => !b.orang);
-        if (tiadaOrang) return 'Isi kastemer untuk ' + tiadaOrang.nama + ' (taip AKU untuk barang sendiri).';
-        const asal = baris.reduce((j, b) => j + (Number(b.beli) || 0) * (parseInt(b.qty, 10) || 1), 0) + (Number(f.ship.value) || 0);
+        const tag = bacaTag(f).filter((t) => t.pilih);
+        const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((x) => x.nama);
+        if (!tag.length && !baris.length) return 'Tag sekurang-kurangnya satu item, atau tambah item lain.';
+        const tiada = baris.find((x) => !x.orang);
+        if (tiada) return 'Isi kastemer untuk ' + tiada.nama + ' (taip AKU untuk barang sendiri).';
+        const asal = tag.reduce((j, t) => j + (Number(t.beli) || 0) * t.qty, 0) +
+          baris.reduce((j, x) => j + (Number(x.beli) || 0) * (parseInt(x.qty, 10) || 1), 0) + (Number(f.ship.value) || 0);
         const kadar = kiraKadar(f, asal);
         const salah = semakKadar(f, kadar, asal);
         if (salah) return salah;
@@ -1079,37 +1188,96 @@
         });
         ubah(() => {
           data.orders.push(o);
-          baris.forEach((b, i) => {
-            const aku = kunciOrang(b.orang) === AKU;
+          tag.forEach((t) => { const it = cariItem(t.id); if (it) { it.orderId = o.id; it.beli = nomborAtauNull(t.beli); } });
+          baris.forEach((x, i) => {
+            const aku = kunciOrang(x.orang) === AKU;
             data.items.push(bersihItem({
-              kat: aku ? 'aku' : 'jual', jenis: b.jenis, nama: b.nama, qty: b.qty, orang: b.orang, tel: aku ? '' : telUntuk(b.orang),
-              harga: aku ? 0 : b.harga, beli: b.beli, orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
+              kat: aku ? 'aku' : 'jual', jenis: x.jenis, nama: x.nama, qty: x.qty, orang: x.orang, tel: aku ? '' : telUntuk(x.orang),
+              harga: aku ? 0 : x.harga, beli: x.beli, orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
             }));
           });
           if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
-          if (o.akaun) { tetapan.akaun = o.akaun; }
-          tetapan.tab = 'beli';
+          if (o.akaun) tetapan.akaun = o.akaun;
           simpanTetapan();
-        }, 'Order ' + (o.no || '') + ' disimpan dengan ' + baris.length + ' item.');
+        }, 'Order ' + (o.no || '') + ' disimpan: ' + (tag.length + baris.length) + ' item.');
         return '';
       },
     });
+  }
+
+  // Ubah item dalam order sedia ada: tag / buang tag, dan harga beli.
+  function borangTagOrder(o) {
+    const calon = calonTag(o);
+    borang({
+      tajuk: 'Item dalam ' + (o.no || 'order'),
+      nota: 'Tanda item dalam order ini dan isi harga beli seunit (' + mataSimbol(o.mata).trim() + '). Buang tanda untuk keluarkan item dari order.',
+      html: htmlTag(calon, o) + '<p class="nota" id="jumlahOrder"></p>',
+      lepas: (f) => {
+        const s = o.mata === 'USD' ? 'US$ seunit' : 'RM seunit';
+        f.querySelectorAll('[data-label-beli-pendek]').forEach((el) => { el.textContent = s; });
+        pasangTag(f);
+      },
+      hantar(f) {
+        const tag = bacaTag(f);
+        ubah(() => {
+          tag.forEach((t) => {
+            const it = cariItem(t.id);
+            if (!it) return;
+            if (t.pilih) { it.orderId = o.id; it.beli = nomborAtauNull(t.beli); }
+            else if (it.orderId === o.id) { it.orderId = null; it.beli = null; }
+          });
+        }, 'Item order dikemas kini.');
+        return '';
+      },
+    });
+  }
+
+  /* ---------- Senarai order ---------- */
+
+  function bukaSenaraiOrder() {
+    panelLukis = paparSenaraiOrder;
+    paparSenaraiOrder();
+    buka($('dlgPanel'));
+  }
+
+  function paparSenaraiOrder() {
+    const ords = data.orders.slice().sort((a, b) => b.tBeli - a.tBeli);
+    let html = '<h2>Senarai order</h2>';
+    if (!ords.length) html += '<p class="kosong">Belum ada order. Tekan Order CM bila dah beli.</p>';
+    html += ords.map((o) => {
+      const its = itemOrder(o);
+      const asal = its.reduce((j, it) => j + (beliAsal(it) || 0), 0) + (o.ship || 0);
+      const kira = {};
+      its.forEach((it) => { const t = it.arkib ? 'Selesai' : TAB[tabItem(it)]; kira[t] = (kira[t] || 0) + 1; });
+      return '<button type="button" class="orang-baris" data-order="' + esc(o.id) + '"><span class="isi"><b>' + esc(o.no || 'Tanpa no.') + '</b><small>' +
+        esc(o.kedai) + ' · ' + tarikh(o.tBeli) + (o.akaun ? ' · ' + esc(o.akaun) : '') + '<br>' + its.length + ' item' +
+        (its.length ? ': ' + Object.entries(kira).map(([k, n]) => n + ' ' + k).join(', ') : '') + '</small></span>' +
+        '<span class="baki sifar">' + (o.mata === 'USD' ? 'US$' + bulat(asal) : rm(asal)) + (o.kadar && o.mata === 'USD' ? '<small>' + rm(asal * o.kadar) + '</small>' : '') + '</span></button>';
+    }).join('');
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
+    $('panelIsi').innerHTML = html;
   }
 
   function kiraJumlahOrder(f) {
     const el = f.querySelector('#jumlahOrder');
     if (!el) return;
     const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((b) => b.nama);
+    const tag = bacaTag(f).filter((t) => t.pilih);
+    if (!f.mata) { el.textContent = tag.length + ' item ditanda.'; return; }
     const s = f.mata.value === 'USD' ? 'US$' : 'RM';
-    const beli = baris.reduce((j, b) => j + (Number(b.beli) || 0) * (parseInt(b.qty, 10) || 1), 0);
-    const jual = baris.reduce((j, b) => j + (kunciOrang(b.orang) === AKU ? 0 : Number(b.harga) || 0), 0);
+    const beli = baris.reduce((j, b) => j + (Number(b.beli) || 0) * (parseInt(b.qty, 10) || 1), 0) +
+      tag.reduce((j, t) => j + (Number(t.beli) || 0) * t.qty, 0);
+    const jual = baris.reduce((j, b) => j + (kunciOrang(b.orang) === AKU ? 0 : Number(b.harga) || 0), 0) +
+      tag.reduce((j, t) => { const it = cariItem(t.id); return j + (it && it.kat === 'jual' ? it.harga : 0); }, 0);
+    const tanpaHarga = tag.filter((t) => t.beli === '').length;
     const ship = Number(f.ship.value) || 0;
     const kadar = kiraKadar(f, beli + ship);
-    let t = baris.length + ' item · beli ' + wang(beli, s) + (ship ? ' + shipping ' + wang(ship, s) : '');
+    let t = (baris.length + tag.length) + ' item · beli ' + wang(beli, s) + (ship ? ' + shipping ' + wang(ship, s) : '');
     if (kadar && f.mata.value === 'USD') t += ' = ' + rm((beli + ship) * kadar) + ' (US$1 = RM' + kadar + ')';
     const amaran = semakKadar(f, kadar, beli + ship);
     if (amaran) t += '. ⚠ ' + amaran;
     if (jual) t += ' · jual ' + rm(jual);
+    if (tanpaHarga) t += ' · ' + tanpaHarga + ' item belum ada harga beli';
     el.textContent = t;
   }
 
@@ -1119,27 +1287,27 @@
     const f = $('formX');
     const bekas = f.querySelector('#barisOrder');
     if (!bekas) return;
+    const tanpaBeli = bekas.hasAttribute('data-tanpa-beli');
     if (b.dataset.baris === 'tambah') {
-      bekas.insertAdjacentHTML('beforeend', htmlBarisOrder());
-      gunaMata(f);
+      bekas.insertAdjacentHTML('beforeend', htmlBarisOrder(tanpaBeli ? null : { orang: AKU }, tanpaBeli));
       bekas.lastElementChild.querySelector('[name="nama"]').focus();
     } else if (b.dataset.baris === 'salin') {
       const baris = b.closest('.baris-order');
       const n = bacaBaris(baris);
       n.orang = '';
-      baris.insertAdjacentHTML('afterend', htmlBarisOrder(n));
-      gunaMata(f);
+      baris.insertAdjacentHTML('afterend', htmlBarisOrder(n, tanpaBeli));
       baris.nextElementSibling.querySelector('[name="orang"]').focus();
     } else if (b.dataset.baris === 'buang') {
-      if (bekas.children.length > 1) b.closest('.baris-order').remove();
-      else bekas.innerHTML = htmlBarisOrder();
+      if (bekas.children.length > 1 || !tanpaBeli) b.closest('.baris-order').remove();
+      else bekas.innerHTML = htmlBarisOrder(null, true);
     }
+    if (f.mata) gunaMata(f);
     kiraJumlahOrder(f);
   });
   $('formX').addEventListener('input', (e) => {
     const f = $('formX');
     if (e.target.name === 'mata') gunaMata(f);
-    if (f.querySelector('#jumlahOrder')) kiraJumlahOrder(f);
+    if (f.querySelector('#jumlahOrder') && !e.target.matches('[data-tapis-pilih]')) kiraJumlahOrder(f);
   });
   $('formX').addEventListener('change', (e) => {
     if (e.target.name === 'mata') { gunaMata($('formX')); kiraJumlahOrder($('formX')); }
@@ -1178,14 +1346,14 @@
       (o.mata === 'USD' ? '<div><span>Kadar' + (o.kadarNota ? ' · ' + esc(o.kadarNota) : '') + '</span><b>' + (o.kadar ? 'US$1 = RM' + o.kadar + (o.kadar < 2 || o.kadar > 10 ? ' <span class="tag-amaran">Salah?</span>' : '') : '<span class="tag-amaran">Belum diisi</span>') + '</b></div>' : '') +
       '</div>';
     if (o.mata === 'USD') html += '<button type="button" class="btn kecil" data-aksi="kadarAuto" style="margin-bottom:10px">Guna kadar pasaran ' + tarikh(o.tBeli) + '</button>';
-    if (tiadaBeli) html += '<p class="nota">' + tiadaBeli + ' item belum ada harga beli. Ketuk item dan Edit untuk isi.</p>';
+    if (tiadaBeli) html += '<p class="nota">' + tiadaBeli + ' item belum ada harga beli. Tekan Tag / ubah item untuk isi.</p>';
     html += '<p class="nota">Shipping dibahagi ikut harga beli setiap item.</p>';
     if (o.catatan) html += '<div class="catatan-penuh">' + esc(o.catatan) + '</div>';
 
     const belum = its.filter((it) => peringkat(it) === 'beli');
     html += '<div class="grid-aksi">' +
       (belum.length ? '<button class="btn utama penuh" type="button" data-aksi="declare">Declare ke hub (' + belum.length + ' item)</button>' : '') +
-      '<button class="btn" type="button" data-aksi="item">+ Item</button>' +
+      '<button class="btn" type="button" data-aksi="tag">Tag / ubah item</button>' +
       '<button class="btn" type="button" data-aksi="edit">Edit order</button>' +
       '<button class="btn bahaya penuh" type="button" data-aksi="padam">Padam order</button></div>';
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-aksi="tutup">Tutup</button></div>';
@@ -1203,7 +1371,7 @@
     const a = b.dataset.aksi;
     if (a === 'tutup') tutup($('dlgOrder'));
     else if (a === 'declare') borangDeclare(itemOrder(o).filter((it) => peringkat(it) === 'beli').map((it) => it.id));
-    else if (a === 'item') borangItem(null, { orderId: o.id, kat: 'jual' });
+    else if (a === 'tag') borangTagOrder(o);
     else if (a === 'edit') borangOrder(o);
     else if (a === 'kadarAuto') {
       b.disabled = true;
@@ -1229,7 +1397,7 @@
         '<div class="dua">' + medanTeks('no', 'No. order', o.no, ' maxlength="40"') + medanTarikh('tBeli', 'Tarikh beli', o.tBeli, true) + '</div>' +
         medanKadar(o) +
         '<label class="medan">Catatan <small>(pilihan)</small><textarea name="catatan" rows="2" maxlength="300">' + esc(o.catatan) + '</textarea></label>' +
-        '<p class="nota" id="jumlahEdit"></p><p class="nota">Harga beli setiap item diubah dari skrin item (Edit).</p>',
+        '<p class="nota" id="jumlahEdit"></p><p class="nota">Item dan harga beli diubah melalui Tag / ubah item.</p>',
       lepas: (f) => {
         gunaMata(f);
         const asal = itemOrder(o).reduce((j, it) => j + (beliAsal(it) || 0), 0);
@@ -1807,11 +1975,11 @@
   }
 
   $('btnTambah').addEventListener('click', () => {
-    if (tetapan.tab === 'beli') borangOrderBaru();
+    if (tetapan.tab === 'beli') borangTempahan();
     else if (tetapan.tab === 'otw') borangKotak(null, data.items.filter((it) => peringkat(it) === 'hub').map((it) => it.id));
     else if (tetapan.tab === 'luar') borangItem(null, { kat: 'luar' });
   });
-  $('btnTambahMula').addEventListener('click', borangOrderBaru);
+  $('btnTambahMula').addEventListener('click', borangTempahan);
 
   /* ---------- Bayaran ---------- */
 
@@ -1992,8 +2160,13 @@
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
     $('panelIsi').innerHTML = html;
   }
-  $('panelIsi').addEventListener('click', (e) => { if (e.target.closest('[data-tutup]')) tutup($('dlgPanel')); });
+  $('panelIsi').addEventListener('click', (e) => {
+    if (e.target.closest('[data-tutup]')) { tutup($('dlgPanel')); return; }
+    const o = e.target.closest('[data-order]');
+    if (o) bukaOrder(o.dataset.order);
+  });
   $('btnUntung').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaUntung, 0); });
+  $('btnSenaraiOrder').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaSenaraiOrder, 0); });
 
   /* ---------- Tetapan ---------- */
 
