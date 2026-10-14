@@ -1189,3 +1189,6 @@ dialog::backdrop { background: var(--tirai); }
 .kump-tajuk b { white-space: normal; }
 .kump-kepala { flex-wrap: wrap; }
 .kump-kepala .kump-tajuk { flex: 1 1 160px; }
+
+.t-keHK { --tahap: color-mix(in srgb, var(--t-ship) 55%, var(--t-post)); }
+.t-hk { --tahap: color-mix(in srgb, var(--t-ship) 35%, var(--t-post)); }

@@ -11,7 +11,7 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 | Tab | Peringkat | Apa yang kau tekan |
 |---|---|---|
 | **Belum Ship** | Tempahan kastemer, kemudian dibeli di CM | **Tempahan baru** (butang bawah): item, kastemer, harga jual, bayaran awal. Bila dah beli di CM: **+ Order CM**, isi no. order, tarikh (kadar diambil sendiri), shipping, kemudian **tag** item tempahan dan isi harga beli seunit (item sama nama diisi sendiri). **Senarai order** tunjuk semua order CHP. |
-| **OTW** | Ke hub → di hub → kotak → dipost ke MY | **Declare** (tanda item dalam satu parcel, tampal tracking US) → **Sampai hub** → **Consolidate** (kos posting BNS) → **Isi Skynet** → **Sampai MY** |
+| **OTW** | Ke Oregon → di Oregon → ke Hong Kong → di Hong Kong → kotak → dipost ke MY | **Declare** (tanda item dalam satu parcel, tampal tracking US) → **Sampai Oregon** → **Ke HK** → **Sampai HK** → **Consolidate** (kos posting BNS) → **Isi Skynet** → **Sampai MY**. Boleh langkau terus ke **Sampai HK** dari Oregon. |
 | **Sampai** | Dah sampai, sorting ikut kastemer | **WhatsApp baki**, kemudian **Serah**: Post J&T (tracking + kos J&T) atau Hantar sendiri. Barang `AKU`: **Dah ambil**. |
 | **Hantar** | Tunggu kastemer sahkan | **Mesej** (tracking + baki), kemudian **Dah terima**. Item masuk Arkib. |
 | **Personal** | Barang aku beli dari orang lain (contoh Enal) | Tambah item, rekod bayaran aku, **Dah terima barang**. |
