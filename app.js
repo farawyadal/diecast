@@ -870,9 +870,9 @@
       const belum = itemTab('beli');
       borangDeclare([], v && v !== '-' ? v : null);
     }
-    else if (g === 'hub') tandaHub(v.split(','));
-    else if (g === 'keHK') tandaMasa(v.split(','), 'tKeHK', 'dihantar ke Hong Kong.');
-    else if (g === 'hk') tandaMasa(v.split(','), 'tHK', 'sampai Hong Kong. Boleh consolidate.');
+    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Sampai Oregon', 'sampai hub Oregon.');
+    else if (g === 'keHK') borangTanda(v.split(','), 'tKeHK', 'Dihantar ke Hong Kong', 'dihantar ke Hong Kong.');
+    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Sampai Hong Kong', 'sampai Hong Kong. Boleh consolidate.');
     else if (g === 'undur') borangUndur(v.split(','));
     else if (g === 'orderCM') borangOrderBaru([]);
     else if (g === 'senaraiOrder') bukaSenaraiOrder();
@@ -928,7 +928,14 @@
     if (pertama) setTimeout(() => pertama.focus(), 50);
   }
   $('formX').addEventListener('click', (e) => {
-    if (e.target.closest('[data-batal]')) tutup($('dlgForm'));
+    if (e.target.closest('[data-batal]')) { tutup($('dlgForm')); return; }
+    const ps = e.target.closest('[data-pilih-semua]');
+    if (ps) {
+      const kotak = [...$('formX').querySelectorAll('.senarai-pilih label:not([hidden]) input[name="' + ps.dataset.pilihSemua + '"]')];
+      const semua = kotak.every((x) => x.checked);
+      kotak.forEach((x) => { x.checked = !semua; });
+      ps.textContent = semua ? 'Tanda semua yang nampak' : 'Buang semua tanda';
+    }
   });
   $('formX').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -956,6 +963,7 @@
   function senaraiPilih(nama, pilihan, jenis) {
     if (!pilihan.length) return '<p class="nota kosong-kecil">Tiada pilihan.</p>';
     return (pilihan.length > 6 ? '<input class="tapis-pilih" type="search" data-tapis-pilih placeholder="Tapis senarai">' : '') +
+      ((jenis || 'checkbox') === 'checkbox' && pilihan.length > 1 ? '<button type="button" class="pautan pilih-semua" data-pilih-semua="' + esc(nama) + '">Tanda semua yang nampak</button>' : '') +
       '<div class="senarai-pilih">' + pilihan.map((p) =>
         '<label><input type="' + (jenis || 'checkbox') + '" name="' + nama + '" value="' + esc(p.nilai) + '"' + (p.pilih ? ' checked' : '') + '>' +
         '<span><b>' + esc(p.label) + '</b>' + (p.sub ? '<small>' + esc(p.sub) + '</small>' : '') + '</span></label>').join('') + '</div>';
@@ -1572,10 +1580,10 @@
   }
 
   // Tanda satu peringkat pada beberapa item; peringkat sebelumnya yang kosong diisi sekali.
-  function tandaMasa(ids, kunci, mesej) {
+  function tandaMasa(ids, kunci, mesej, masa) {
     const urutan = ['tShip', 'tHub', 'tKeHK', 'tHK'];
     const hingga = urutan.indexOf(kunci);
-    const kini = Date.now();
+    const kini = masa || Date.now();
     ubah(() => {
       ids.forEach((id) => {
         const it = cariItem(id);
@@ -1583,6 +1591,24 @@
         urutan.slice(0, hingga + 1).forEach((k) => { if (!it[k]) it[k] = kini; });
       });
     }, ids.length + ' item ' + mesej);
+  }
+
+  // Pilih item mana yang naik peringkat (parcel dalam satu kumpulan mungkin berbeza).
+  function borangTanda(ids, kunci, tajuk, mesej) {
+    const calon = ids.map(cariItem).filter(Boolean)
+      .sort((a, b) => (a.trackUS || '').localeCompare(b.trackUS || '') || urut(a, b));
+    borang({
+      tajuk,
+      nota: 'Tanda item yang berkenaan sahaja. Item dengan tracking yang sama ada di sebelah-menyebelah.',
+      html: medanTarikh('t', 'Tarikh', Date.now(), true) + senaraiPilih('item', pilihanItem(calon, calon.length === 1 ? [calon[0].id] : [])),
+      simpan: 'Simpan',
+      hantar(f) {
+        const pilih = nilaiPilih(f, 'item');
+        if (!pilih.length) return 'Tanda sekurang-kurangnya satu item.';
+        tandaMasa(pilih, kunci, mesej, dariInput(f.t.value));
+        return '';
+      },
+    });
   }
 
   /* ---------- Kotak (consolidate BNS) ---------- */

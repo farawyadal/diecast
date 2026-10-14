@@ -3,7 +3,7 @@
    hanya bila tiada internet. Dengan cara ini perubahan nampak sebaik sahaja refresh. */
 // Apps lain di alamat github.io yang sama ada simpanan sendiri; hanya urus yang bermula dengan awalan ini.
 const AWALAN = 'diecast-';
-const CACHE = AWALAN + 'v11';
+const CACHE = AWALAN + 'v12';
 const FAIL = [
   './',
   'index.html',

@@ -1232,3 +1232,5 @@ dialog::backdrop { background: var(--tirai); }
 .bar-aksi { margin-bottom: 4px; }
 
 .senarai { overflow-x: clip; }
+
+.pilih-semua { display: block; margin: 0 0 8px auto; font-size: 0.875rem; }
