@@ -1260,3 +1260,13 @@ dialog::backdrop { background: var(--tirai); }
 .sedang-leret .undur-kad { visibility: hidden; }
 
 .segmen.dua-seg { grid-template-columns: 1fr 1fr; }
+
+.jejak {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--utama);
+  text-decoration: none;
+}
+.jejak:hover { text-decoration: underline; }

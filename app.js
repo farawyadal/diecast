@@ -41,8 +41,8 @@
     beli: 'Tempahan', otw: 'Transit', sampai: 'Tiba', hantar: 'Penghantaran', luar: 'Peribadi', arkib: 'Arkib',
   };
   const PERINGKAT = {
-    beli: 'Dalam tempahan', ship: 'Dalam perjalanan ke gudang Oregon', hub: 'Di gudang Oregon', keHK: 'Dalam perjalanan ke hub Hong Kong',
-    hk: 'Di hub Hong Kong', kotak: 'Disatukan (consolidate)', post: 'Dalam perjalanan ke Malaysia',
+    beli: 'Dalam tempahan', ship: 'Dalam perjalanan ke gudang', hub: 'Di gudang', keHK: 'Dalam perjalanan ke hub',
+    hk: 'Di hub', kotak: 'Disatukan (consolidate)', post: 'Dalam perjalanan ke Malaysia',
     sampai: 'Tiba di Malaysia', hantar: 'Dalam penghantaran', selesai: 'Selesai',
   };
   const TAB_PERINGKAT = { beli: 'beli', ship: 'otw', hub: 'otw', keHK: 'otw', hk: 'otw', kotak: 'otw', post: 'otw', sampai: 'sampai', hantar: 'hantar', selesai: 'arkib' };
@@ -581,7 +581,8 @@
     if (p === 'beli' && o) teks += ' · ' + bilHari(o.tBeli) + ' hari';
     if (['ship', 'hub', 'keHK', 'hk'].includes(p) && it.tShip) teks += ' · ' + bilHari(it.tShip) + ' hari';
     if (p === 'post' && k) teks += ' · ' + bilHari(k.tPost) + ' hari';
-    if (o && o.no) teks += ' · ' + o.no;
+    if (['ship', 'hub', 'keHK', 'hk'].includes(p) && it.trackUS) teks += ' · ' + it.trackUS;
+    else if (o && o.no) teks += ' · ' + o.no;
     return '<div class="kad-tahap"><span class="tahap-titik t-' + p + '"></span>' + esc(teks) + '</div>';
   }
 
@@ -774,9 +775,9 @@
         if (!its.length) return;
         html += htmlKumpulan({ titik: p, tajuk, sub: its.length + ' item' + (sub ? ' · ' + sub : ''), items: its, kad: { orang: true, undur: true }, aksi: aksi(its) });
       };
-      kumpPeringkat('hk', 'Hub Hong Kong', 'sedia consolidate', () => [{ g: 'kotakBaru', nilai: 'hk', label: 'Consolidate', kelas: 'utama' }]);
-      kumpPeringkat('keHK', 'Gudang Oregon → Hub Hong Kong', '', (its) => [{ g: 'hk', nilai: senaraiId(its), label: 'Tiba di hub HK', kelas: 'utama' }]);
-      kumpPeringkat('hub', 'Gudang Oregon', '', (its) => [{ g: 'keHK', nilai: senaraiId(its), label: 'Hantar ke hub HK' }, { g: 'hk', nilai: senaraiId(its), label: 'Tiba di hub HK' }]);
+      kumpPeringkat('hk', 'Hub', 'sedia consolidate', () => [{ g: 'kotakBaru', nilai: 'hk', label: 'Consolidate', kelas: 'utama' }]);
+      kumpPeringkat('keHK', 'Gudang → Hub', '', (its) => [{ g: 'hk', nilai: senaraiId(its), label: 'Tiba di hub', kelas: 'utama' }]);
+      kumpPeringkat('hub', 'Gudang', '', (its) => [{ g: 'keHK', nilai: senaraiId(its), label: 'Hantar ke hub' }, { g: 'hk', nilai: senaraiId(its), label: 'Tiba di hub' }]);
       const keHub = nampak.filter((it) => peringkat(it) === 'ship');
       const parcel = new Map();
       keHub.forEach((it) => {
@@ -788,11 +789,11 @@
         const tMin = Math.min(...its.map((it) => it.tShip || Date.now()));
         html += htmlKumpulan({
           titik: 'ship',
-          tajuk: trk === '\u0000lama' ? 'Dalam transit · data lama' : trk ? 'Ke gudang Oregon · ' + trk : 'Ke gudang Oregon · tanpa tracking',
+          tajuk: trk === '\u0000lama' ? 'Dalam transit · data lama' : trk ? 'Ke gudang · ' + trk : 'Ke gudang · tanpa tracking',
           sub: trk === '\u0000lama' ? 'Tiada butiran perjalanan · masukkan ke kotak apabila diketahui' :
             'Ship ' + tarikh(tMin) + ' · ' + bilHari(tMin) + ' hari' + (its.some((it) => !it.tDeclare) ? ' · <span class="tag-amaran">Belum declare</span>' : ''),
           items: its, kad: { orang: true, peringkat: false, undur: true },
-          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Pulangkan' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Tiba di gudang Oregon' }],
+          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Pulangkan' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Tiba di gudang' }],
         });
       });
     } else if (tab === 'sampai') {
@@ -825,7 +826,7 @@
             sub: (h.cara === 'pos' ? 'J&T' + (h.track ? ' ' + esc(h.track) : '') : 'Hantar sendiri') + ' · ' + tarikh(h.t) +
               (bk > 0 ? ' · baki <b>' + rm(bk) + '</b>' : ''),
             buka: 'hantar:' + h.id,
-            items: its, kad: { peringkat: false },
+            items: its, kad: { peringkat: false, undur: true, orang: new Set(its.map((it) => kunciOrang(it.orang))).size > 1 },
             aksi: [{ g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
           });
         });
@@ -890,9 +891,9 @@
       const belum = itemTab('beli');
       borangDeclare([], v && v !== '-' ? v : null);
     }
-    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Tiba di gudang Oregon', 'tiba di gudang Oregon.');
-    else if (g === 'keHK') borangTanda(v.split(','), 'tKeHK', 'Dihantar ke hub Hong Kong', 'dihantar ke hub Hong Kong.');
-    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Tiba di hub Hong Kong', 'tiba di hub Hong Kong. Boleh consolidate.');
+    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Tiba di gudang', 'tiba di gudang.');
+    else if (g === 'keHK') borangTanda(v.split(','), 'tKeHK', 'Dihantar ke hub', 'dihantar ke hub.');
+    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Tiba di hub', 'tiba di hub. Boleh consolidate.');
     else if (g === 'undur') borangUndur(v.split(','));
     else if (g === 'orderCM') borangOrderBaru([]);
     else if (g === 'senaraiOrder') bukaSenaraiOrder();
@@ -1608,7 +1609,7 @@
   }
 
   function tandaHub(ids) {
-    tandaMasa(ids, 'tHub', 'tiba di gudang Oregon.');
+    tandaMasa(ids, 'tHub', 'tiba di gudang.');
   }
 
   // Tanda satu peringkat pada beberapa item; peringkat sebelumnya yang kosong diisi sekali.
@@ -1626,17 +1627,40 @@
   }
 
   // Pilih item mana yang naik peringkat (parcel dalam satu kumpulan mungkin berbeza).
+  // Item dalam satu parcel (tracking sama) bergerak bersama. Pilih parcel mana yang naik peringkat.
+  function parcelDari(its) {
+    const peta = new Map();
+    its.forEach((it) => {
+      const k = it.trackUS ? 'T:' + it.trackUS : 'I:' + it.id;
+      if (!peta.has(k)) peta.set(k, []);
+      peta.get(k).push(it);
+    });
+    return [...peta.values()];
+  }
+
+  // Item lain dalam parcel yang sama dan di peringkat yang sama.
+  function sekumpulan(it) {
+    if (!it.trackUS) return [it.id];
+    const p = peringkat(it);
+    return data.items.filter((x) => x.trackUS === it.trackUS && peringkat(x) === p).map((x) => x.id);
+  }
+
   function borangTanda(ids, kunci, tajuk, mesej) {
-    const calon = ids.map(cariItem).filter(Boolean)
-      .sort((a, b) => (a.trackUS || '').localeCompare(b.trackUS || '') || urut(a, b));
+    const parcel = parcelDari(ids.map(cariItem).filter(Boolean).sort(urut));
+    const pilihan = parcel.map((its) => ({
+      nilai: its.map((it) => it.id).join(','),
+      label: its[0].trackUS ? 'Tracking ' + its[0].trackUS : labelItem(its[0]) + ' · tanpa tracking',
+      sub: its.map((it) => labelItem(it) + ' (' + (it.kat === 'aku' ? 'Sendiri' : it.orang) + ')').join(', '),
+      pilih: parcel.length === 1,
+    }));
     borang({
       tajuk,
-      nota: 'Tanda item yang berkenaan sahaja. Item dengan tracking yang sama ada di sebelah-menyebelah.',
-      html: medanTarikh('t', 'Tarikh', Date.now(), true) + senaraiPilih('item', pilihanItem(calon, calon.length === 1 ? [calon[0].id] : [])),
+      nota: 'Item dengan tracking yang sama bergerak bersama. Tanda parcel yang berkenaan sahaja.',
+      html: medanTarikh('t', 'Tarikh', Date.now(), true) + senaraiPilih('parcel', pilihan),
       simpan: 'Simpan',
       hantar(f) {
-        const pilih = nilaiPilih(f, 'item');
-        if (!pilih.length) return 'Tanda sekurang-kurangnya satu item.';
+        const pilih = nilaiPilih(f, 'parcel').join(',').split(',').filter(Boolean);
+        if (!pilih.length) return 'Tanda sekurang-kurangnya satu parcel.';
         tandaMasa(pilih, kunci, mesej, dariInput(f.t.value));
         return '';
       },
@@ -1734,10 +1758,53 @@
     if (paparKotak()) buka($('dlgKotak'));
   }
 
+  /* ---------- Pautan tracking syarikat penghantaran ---------- */
+
+  // US: FedEx atau USPS, dikenal pasti dari bentuk nombor. Skynet dan J&T: laman tracking
+  // mereka tidak terima nombor dalam pautan, jadi nombor disalin dulu untuk ditampal.
+  function kurierUS(no) {
+    const n = String(no || '').replace(/\s/g, '');
+    if (/^(fdx|fedex)/i.test(n)) return 'fedex';
+    if (/^(usps)/i.test(n)) return 'usps';
+    const d = n.replace(/\D/g, '');
+    if (/^9[1-5]\d{18,26}$/.test(d) || /^[A-Z]{2}\d{9}US$/i.test(n)) return 'usps';
+    if (/^\d{12}$|^\d{15}$|^\d{20}$|^\d{22}$/.test(d)) return 'fedex';
+    return null;
+  }
+
+  function urlJejak(no, jenis) {
+    const n = String(no || '').trim().replace(/^(fdx|fedex|usps)\s*:?\s*/i, '');
+    const e = encodeURIComponent(n.replace(/\s/g, ''));
+    if (jenis === 'us') jenis = kurierUS(no) || 'fedex';
+    return {
+      fedex: { url: 'https://www.fedex.com/fedextrack/?trknbr=' + e, nama: 'FedEx', salin: false },
+      usps: { url: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' + e, nama: 'USPS', salin: false },
+      skynet: { url: 'https://www.skynet.com.my/track', nama: 'Skynet', salin: true },
+      jnt: { url: 'https://www.jtexpress.my/tracking', nama: 'J&T', salin: true },
+    }[jenis];
+  }
+
+  function htmlJejak(no, jenis) {
+    if (!no) return '';
+    if (jenis === 'us' && !kurierUS(no)) return htmlJejak(no, 'fedex') + ' · ' + htmlJejak(no, 'usps');
+    const j = urlJejak(no, jenis);
+    return '<a class="jejak" href="' + esc(j.url) + '" target="_blank" rel="noopener" data-jejak-salin="' + (j.salin ? esc(no) : '') + '" data-kurier="' + esc(j.nama) + '">' +
+      'Jejak ' + esc(j.nama) + ' ↗</a>';
+  }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-jejak-salin]');
+    if (!a || !a.dataset.jejakSalin) return;
+    const no = a.dataset.jejakSalin;
+    try { navigator.clipboard.writeText(no); } catch (err) { /* tak penting */ }
+    toast('Nombor ' + no + ' disalin. Tampal di laman ' + a.dataset.kurier + '.');
+  });
+
   function garisMasa(baris) {
     return '<ol class="garis-masa">' + baris.map((b) =>
       '<li class="' + (b.t ? 'siap' : '') + '"><span class="bulatan"></span><span class="isi"><b>' + esc(b.label) + '</b>' +
-      '<small>' + (b.t ? tarikh(b.t) : (b.kosong || 'Belum')) + (b.sub ? ' · ' + b.sub : '') + '</small></span>' +
+      '<small>' + (b.t ? tarikh(b.t) : (b.kosong || 'Belum')) + (b.sub ? ' · ' + b.sub : '') + '</small>' +
+      (b.jejak && b.salin ? htmlJejak(b.salin, b.jejak) : '') + '</span>' +
       (b.salin ? '<button type="button" class="buang" data-salin="' + esc(b.salin) + '" aria-label="Salin ' + esc(b.salin) + '">' + IKON_SALIN + '</button>' : '') +
       '</li>').join('') + '</ol>';
   }
@@ -1753,7 +1820,7 @@
         : !k.tSampai ? '<button class="btn hijau penuh" type="button" data-aksi="sampai">Tiba di Malaysia</button>' : '') + '</div>';
     html += garisMasa([
       { label: 'Consolidate', t: k.tBuat, sub: k.kos !== null ? 'kos ' + rm(k.kos) : '' },
-      { label: 'Dipost ke MY', t: k.tPost, sub: k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k.trackMY },
+      { label: 'Dipost ke MY', t: k.tPost, sub: k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k.trackMY, jejak: 'skynet' },
       { label: 'Tiba di Malaysia', t: k.tSampai, sub: k.tSampai && k.tPost ? bilHari(k.tPost, k.tSampai) + ' hari perjalanan' : '' },
     ]);
     html += '<h3>Item (' + its.length + ')</h3><table class="jadual"><thead><tr><th>Item</th><th>Posting</th></tr></thead><tbody>' +
@@ -1781,7 +1848,7 @@
     else if (a === 'sampai') borangSampai(k);
     else if (a === 'edit') borangKotak(k);
     else if (a === 'padam') {
-      const ok = await sahkan({ tajuk: 'Padam ' + namaKotak(k) + '?', teks: 'Item tidak dipadam; ia kembali ke "Hub Hong Kong".', ya: 'Padam', bahaya: true });
+      const ok = await sahkan({ tajuk: 'Padam ' + namaKotak(k) + '?', teks: 'Item tidak dipadam; ia kembali ke "Hub".', ya: 'Padam', bahaya: true });
       if (!ok) return;
       ubah(() => { data.kotak = data.kotak.filter((x) => x !== k); }, 'Kotak dipadam.');
       tutup($('dlgKotak'));
@@ -1790,9 +1857,12 @@
 
   /* ---------- Serah pada kastemer ---------- */
 
+  // Satu hantaran boleh ada beberapa pelanggan yang guna alamat sama (satu tracking J&T).
   function borangSerah(kunci, tanda) {
-    const calon = itemTab('sampai').filter((it) => kunciOrang(it.orang) === kunci);
+    const semua = itemTab('sampai').filter((it) => it.kat === 'jual');
+    const calon = semua.filter((it) => kunciOrang(it.orang) === kunci);
     if (!calon.length) { toast('Tiada item yang telah tiba untuk pelanggan ini.'); return; }
+    const lain = semua.filter((it) => kunciOrang(it.orang) !== kunci).sort((a, b) => a.orang.localeCompare(b.orang) || urut(a, b));
     const nama = calon[0].orang;
     const pilih = tanda && tanda.length ? tanda : calon.map((it) => it.id);
     borang({
@@ -1803,7 +1873,9 @@
         '<div data-pos><div class="dua">' + medanTeks('track', 'Tracking J&amp;T', '', ' maxlength="60" data-fokus') +
         medanNombor('kos', 'Kos J&amp;T (RM) <small>(ditanggung sendiri)</small>', '') + '</div></div>' +
         medanTarikh('t', 'Tarikh', Date.now(), true) +
-        '<h3>Item</h3>' + senaraiPilih('item', pilihanItem(calon, pilih)),
+        '<h3>Item ' + esc(nama) + '</h3>' + senaraiPilih('item', pilihanItem(calon, pilih)) +
+        (lain.length ? '<h3>Pelanggan lain, alamat sama? <small>(pilihan)</small></h3><p class="nota">Tanda item pelanggan lain yang dihantar dalam bungkusan yang sama.</p>' +
+          senaraiPilih('item', pilihanItem(lain, [])) : ''),
       simpan: 'Simpan',
       lepas: (f) => {
         const segar = () => { f.querySelector('[data-pos]').hidden = f.cara.value !== 'pos'; };
@@ -1813,16 +1885,18 @@
       hantar(f) {
         const ids = nilaiPilih(f, 'item');
         if (!ids.length) return 'Tanda sekurang-kurangnya satu item.';
+        const nama2 = [...new Set(ids.map((id) => cariItem(id)).filter(Boolean).map((it) => it.orang))];
+        nama2.sort((a, b) => (kunciOrang(b) === kunci) - (kunciOrang(a) === kunci));
         const pos = f.cara.value === 'pos';
         const h = bersihHantar({
-          id: idBaru(), orang: nama, cara: f.cara.value, track: pos ? f.track.value : '', kos: pos ? f.kos.value : null,
+          id: idBaru(), orang: nama2.join(' + '), cara: f.cara.value, track: pos ? f.track.value : '', kos: pos ? f.kos.value : null,
           t: dariInput(f.t.value), dibuat: Date.now(),
         });
         ubah(() => {
           data.hantar.push(h);
           ids.forEach((id) => { const it = cariItem(id); if (it) it.hantarId = h.id; });
         });
-        toast(ids.length + ' item ' + (pos ? 'dipost' : 'dihantar') + ' pada ' + nama + '.', { label: 'WhatsApp', fn: () => waHantar(cariHantar(h.id)) });
+        toast(ids.length + ' item ' + (pos ? 'dipost' : 'dihantar') + ' pada ' + h.orang + '.', { label: 'WhatsApp', fn: () => waHantar(cariHantar(h.id)) });
         return '';
       },
     });
@@ -1898,10 +1972,10 @@
     const p = peringkat(it);
     return {
       beli: ['declare', 'Rekod penghantaran ke BNS (declare)'],
-      ship: ['hub', 'Tiba di gudang Oregon'],
-      keHK: ['hk', 'Tiba di hub Hong Kong'],
+      ship: ['hub', 'Tiba di gudang'],
+      keHK: ['hk', 'Tiba di hub'],
       hk: ['kotak', 'Consolidate (masuk kotak)'],
-      hub: ['keHK', 'Dihantar ke hub Hong Kong'],
+      hub: ['keHK', 'Dihantar ke hub'],
       kotak: ['bukaKotak', 'Buka kotak · isi Skynet'],
       post: ['bukaKotak', 'Buka kotak'],
       sampai: it.kat === 'aku' ? ['ambil', 'Diterima · selesai'] : ['serah', 'Hantar kepada pelanggan'],
@@ -1949,14 +2023,14 @@
     if (!luar) {
       html += garisMasa([
         { label: 'Dibeli' + (o ? ' · ' + o.kedai : ''), t: o ? o.tBeli : null, kosong: 'Tiada order', sub: o && o.no ? esc(o.no) : '' },
-        { label: 'Dihantar ke gudang Oregon', t: it.tShip, sub: it.trackUS ? esc(it.trackUS) : '', salin: it.trackUS },
-        { label: 'Tiba di gudang Oregon', t: it.tHub },
-        { label: 'Dihantar ke hub Hong Kong', t: it.tKeHK },
-        { label: 'Tiba di hub Hong Kong', t: it.tHK },
+        { label: 'Dihantar ke gudang', t: it.tShip, sub: it.trackUS ? esc(it.trackUS) : '', salin: it.trackUS, jejak: 'us' },
+        { label: 'Tiba di gudang', t: it.tHub },
+        { label: 'Dihantar ke hub', t: it.tKeHK },
+        { label: 'Tiba di hub', t: it.tHK },
         { label: 'Consolidate', t: k ? k.tBuat : null, sub: k ? esc(namaKotak(k)) : '' },
-        { label: 'Dipost ke MY', t: k && k.tPost, sub: k && k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k && k.trackMY },
+        { label: 'Dipost ke MY', t: k && k.tPost, sub: k && k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k && k.trackMY, jejak: 'skynet' },
         { label: 'Tiba di Malaysia', t: k && k.tSampai },
-        aku ? null : { label: hh && hh.cara === 'sendiri' ? 'Hantar sendiri' : 'Post J&T', t: hh ? hh.t : null, sub: hh && hh.track ? esc(hh.track) : '', salin: hh && hh.track },
+        aku ? null : { label: hh && hh.cara === 'sendiri' ? 'Hantar sendiri' : 'Post J&T', t: hh ? hh.t : null, sub: hh && hh.track ? esc(hh.track) : '', salin: hh && hh.track, jejak: 'jnt' },
         { label: 'Selesai', t: it.arkib },
       ].filter(Boolean));
       html += '<div class="baris-btn pautan-kecil">' +
@@ -1969,8 +2043,8 @@
     if (it.catatan) html += '<div class="catatan-penuh">' + esc(it.catatan) + '</div>';
 
     const undur = {
-      ship: 'Batal declare · kembali ke Tempahan', hub: 'Undur · belum tiba di gudang Oregon',
-      keHK: 'Undur · masih di gudang Oregon', hk: 'Undur · belum tiba di hub Hong Kong',
+      ship: 'Batal declare · kembali ke Tempahan', hub: 'Undur · belum tiba di gudang',
+      keHK: 'Undur · masih di gudang', hk: 'Undur · belum tiba di hub',
       kotak: 'Keluarkan dari kotak', post: 'Keluarkan dari kotak', sampai: 'Keluarkan dari kotak', hantar: 'Batal penghantaran · kembali ke Tiba',
     }[p];
     html += '<div class="grid-aksi" style="margin-top:12px">' +
@@ -2017,9 +2091,9 @@
     else if (a === 'bukaOrder') bukaOrder(it.orderId);
     else if (a === 'bukaKotak') bukaKotak(it.kotakId);
     else if (a === 'declare') borangDeclare([it.id]);
-    else if (a === 'hub') tandaHub([it.id]);
-    else if (a === 'keHK') tandaMasa([it.id], 'tKeHK', 'dihantar ke hub Hong Kong.');
-    else if (a === 'hk') tandaMasa([it.id], 'tHK', 'tiba di hub Hong Kong.');
+    else if (a === 'hub') tandaHub(sekumpulan(it));
+    else if (a === 'keHK') tandaMasa(sekumpulan(it), 'tKeHK', 'dihantar ke hub.');
+    else if (a === 'hk') tandaMasa(sekumpulan(it), 'tHK', 'tiba di hub.');
     else if (a === 'kotak') pilihKotak(it);
     else if (a === 'serah') borangSerah(kunciOrang(it.orang), [it.id]);
     else if (a === 'terima') terimaHantar(cariHantar(it.hantarId));
@@ -2079,9 +2153,9 @@
     borang({
       tajuk: 'Betulkan tarikh',
       nota: esc(labelItem(it)) + '. Tarikh kotak (post, sampai) diubah dari skrin kotak.',
-      html: '<div class="dua">' + medanTarikh('tShip', 'Dihantar ke gudang Oregon', it.tShip) + medanTeks('trackUS', 'Tracking US', it.trackUS, ' maxlength="60"') + '</div>' +
-        '<div class="dua">' + medanTarikh('tDeclare', 'Declare BNS', it.tDeclare) + medanTarikh('tHub', 'Tiba di gudang Oregon', it.tHub) + '</div>' +
-        '<div class="dua">' + medanTarikh('tKeHK', 'Dihantar ke hub HK', it.tKeHK) + medanTarikh('tHK', 'Tiba di hub HK', it.tHK) + '</div>' + kotakPilih,
+      html: '<div class="dua">' + medanTarikh('tShip', 'Dihantar ke gudang', it.tShip) + medanTeks('trackUS', 'Tracking US', it.trackUS, ' maxlength="60"') + '</div>' +
+        '<div class="dua">' + medanTarikh('tDeclare', 'Declare BNS', it.tDeclare) + medanTarikh('tHub', 'Tiba di gudang', it.tHub) + '</div>' +
+        '<div class="dua">' + medanTarikh('tKeHK', 'Dihantar ke hub', it.tKeHK) + medanTarikh('tHK', 'Tiba di hub', it.tHK) + '</div>' + kotakPilih,
       hantar(f) {
         ubah(() => {
           it.tShip = tarikhAtauNull(f.tShip.value);
@@ -2345,11 +2419,13 @@
     if (!h) return;
     const its = itemHantar(h);
     const bk = bakiPositif(its);
-    let teks = 'Salam ' + h.orang + '.\n\n';
-    if (h.cara === 'pos') teks += 'Barang telah dipos melalui J&T:\n' + its.map((it) => '- ' + labelItem(it)).join('\n') + (h.track ? '\n\nTracking J&T: ' + h.track : '') + '\n';
-    else teks += 'Barang akan dihantar sendiri:\n' + its.map((it) => '- ' + labelItem(it)).join('\n') + '\n';
+    const ramai = new Set(its.map((it) => kunciOrang(it.orang))).size > 1;
+    const baris = its.map((it) => '- ' + labelItem(it) + (ramai ? ' (' + it.orang + ')' : '')).join('\n');
+    let teks = 'Salam ' + h.orang.split(' + ')[0] + '.\n\n';
+    if (h.cara === 'pos') teks += 'Barang telah dipos melalui J&T:\n' + baris + (h.track ? '\n\nTracking J&T: ' + h.track + '\nSemak status: ' + urlJejak(h.track, 'jnt').url : '') + '\n';
+    else teks += 'Barang akan dihantar sendiri:\n' + baris + '\n';
     if (bk > 0) {
-      teks += '\nBaki bayaran: ' + rm(bk) + '\n';
+      teks += '\nBaki bayaran' + (ramai ? ' (semua dalam bungkusan ini)' : '') + ': ' + rm(bk) + '\n';
       if (data.bank) teks += data.bank.trim() + '\n';
     }
     teks += '\nSila maklumkan apabila barang telah diterima. Terima kasih.';
@@ -2391,7 +2467,15 @@
     html += '<table class="jadual"><thead><tr><th>Bulan</th><th>Jual</th><th>Kos</th><th>Untung</th></tr></thead><tbody>' +
       baris.map((g) => '<tr><td><b>' + g.label + '</b><small>' + g.n + ' item' + (g.tak ? ' · ' + g.tak + ' tanpa kos' : '') + '</small></td><td>' + rm(g.jual) + '</td><td>' + rm(g.kos) +
         '</td><td class="' + (g.untung < 0 ? 'rugi' : 'untung') + '">' + rm(g.untung) + '</td></tr>').join('') + '</tbody></table>';
-    if (tak) html += '<p class="nota">' + tak + ' item belum ada kos, jadi tidak dikira. Item dari Excel lama tiada harga beli; isi melalui Edit kalau perlu.</p>';
+    if (tak) {
+      html += '<h3>' + tak + ' item belum ada kos</h3><p class="nota">Item ini tidak dikira. Ketuk item untuk isi kos melalui Edit, atau Tag / ubah item dalam order.</p>';
+      html += '<div>' + jual.filter((it) => !kosItem(it).lengkap).sort(urut).map((it) => {
+        const o = it.orderId ? cariOrder(it.orderId) : null;
+        const sebab = !o ? 'Tiada order · isi kos RM' : it.beli === null ? 'Harga beli belum diisi · ' + (o.no || 'order') : 'Kadar order belum diisi · ' + (o.no || 'order');
+        return '<button type="button" class="item-mini boleh" data-item="' + esc(it.id) + '"><i class="titik s-' + status(it) + '"></i><span class="isi">' + esc(labelItem(it)) +
+          '<small>' + esc(it.orang) + ' · ' + esc(sebab) + '</small></span><span class="baki">' + rm(it.harga) + '</span></button>';
+      }).join('') + '</div>';
+    }
     html += '<p class="nota">Jumlah kos posting BNS direkod: ' + rm(kotakKos) + ' · kos J&amp;T: ' + rm(jnt) + '</p>';
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
     $('panelIsi').innerHTML = html;
@@ -2399,7 +2483,9 @@
   $('panelIsi').addEventListener('click', (e) => {
     if (e.target.closest('[data-tutup]')) { tutup($('dlgPanel')); return; }
     const o = e.target.closest('[data-order]');
-    if (o) bukaOrder(o.dataset.order);
+    if (o) { bukaOrder(o.dataset.order); return; }
+    const it = e.target.closest('[data-item]');
+    if (it) bukaButir(it.dataset.item);
   });
   $('btnUntung').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaUntung, 0); });
   $('btnSenaraiOrder').addEventListener('click', bukaSenaraiOrder);

@@ -16,6 +16,12 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 | **Penghantaran** | Tunggu kastemer sahkan | **Mesej** (tracking + baki), kemudian **Dah terima**. Item masuk Arkib. |
 | **Peribadi** | Barang aku beli dari orang lain (contoh Enal) | Tambah item, rekod bayaran aku, **Dah terima barang**. |
 
+**Parcel:** item yang declare dengan tracking yang sama bergerak bersama. Butang Tiba di gudang / Hantar ke hub / Tiba di hub buka senarai parcel untuk dipilih.
+
+**Penghantaran:** satu hantaran J&T boleh mengandungi item beberapa pelanggan yang guna alamat sama (bahagian *Pelanggan lain, alamat sama?* dalam borang Hantar).
+
+**Pautan tracking:** dalam garis masa item ada pautan *Jejak FedEx / USPS / Skynet / J&T*. FedEx dan USPS terus buka status; Skynet dan J&T buka laman tracking dan nombor disalin untuk ditampal.
+
 **Leret kad:** ke kanan = rekod bayaran penuh (apps tanya dulu); ke kiri = barang dah diserah, masuk Arkib (ada **Buat asal**).
 
 Ikon di atas: **Senarai order CM**, **Arkib**, dan **Pelanggan** (baki setiap pelanggan; dari situ boleh **Tukar nama / gabung** dua nama yang sebenarnya orang sama).
