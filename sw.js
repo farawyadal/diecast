@@ -3,7 +3,7 @@
    Jadi bila fail di GitHub dikemas kini, perubahan nampak pada bukaan seterusnya. */
 // Apps lain di alamat github.io yang sama ada simpanan sendiri; hanya urus yang bermula dengan awalan ini.
 const AWALAN = 'diecast-';
-const CACHE = AWALAN + 'v6';
+const CACHE = AWALAN + 'v7';
 const FAIL = [
   './',
   'index.html',

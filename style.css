@@ -1185,3 +1185,7 @@ dialog::backdrop { background: var(--tirai); }
 .bar-aksi { gap: 6px; flex-wrap: wrap; }
 .helai-isi h3 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .orang-baris .baki small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--dakwat-2); text-align: right; }
+
+.kump-tajuk b { white-space: normal; }
+.kump-kepala { flex-wrap: wrap; }
+.kump-kepala .kump-tajuk { flex: 1 1 160px; }

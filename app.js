@@ -701,7 +701,7 @@
           sub: trk === '\u0000lama' ? 'Tiada butiran perjalanan · masukkan ke kotak bila tahu' :
             'Ship ' + tarikh(tMin) + ' · ' + bilHari(tMin) + ' hari' + (its.some((it) => !it.tDeclare) ? ' · <span class="tag-amaran">Belum declare</span>' : ''),
           items: its, kad: { orang: true, peringkat: false },
-          aksi: [{ g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Sampai hub' }],
+          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Belum ship?' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Sampai hub' }],
         });
       });
     } else if (tab === 'sampai') {
@@ -788,9 +788,10 @@
   function aksiKumpulan(g, v) {
     if (g === 'declare') {
       const belum = itemTab('beli');
-      borangDeclare(!v ? [] : v === '-' ? belum.filter((it) => !it.orderId).map((it) => it.id) : belum.filter((it) => it.orderId === v).map((it) => it.id));
+      borangDeclare([], v && v !== '-' ? v : null);
     }
     else if (g === 'hub') tandaHub(v.split(','));
+    else if (g === 'undur') borangUndur(v.split(','));
     else if (g === 'orderCM') borangOrderBaru([]);
     else if (g === 'senaraiOrder') bukaSenaraiOrder();
     else if (g === 'kotakBaru') borangKotak(null, data.items.filter((it) => peringkat(it) === 'hub').map((it) => it.id));
@@ -1433,8 +1434,8 @@
 
   /* ---------- Declare parcel ke hub ---------- */
 
-  function borangDeclare(tanda) {
-    const calon = itemTab('beli').sort(urut);
+  function borangDeclare(tanda, utamaOrder) {
+    const calon = itemTab('beli').sort((a, b) => ((b.orderId === utamaOrder) - (a.orderId === utamaOrder)) || urut(a, b));
     if (!calon.length) { toast('Tiada item yang belum ship.'); return; }
     borang({
       tajuk: 'Declare parcel ke hub',
@@ -1458,6 +1459,27 @@
             it.tDeclare = dec ? t : null;
           });
         }, ids.length + ' item kini OTW ke hub.');
+        return '';
+      },
+    });
+  }
+
+  // Pulangkan item ke Belum Ship (contoh: tersilap declare, atau data lama yang sebenarnya belum ship).
+  function undurKeBeli(it) {
+    it.tShip = null; it.trackUS = ''; it.tDeclare = null; it.tHub = null; it.kotakId = null; it.hantarId = null; it.lama = false;
+  }
+
+  function borangUndur(ids) {
+    const calon = ids.map(cariItem).filter(Boolean);
+    borang({
+      tajuk: 'Pulangkan ke Belum Ship',
+      nota: 'Tanda item yang sebenarnya belum ship. Tracking dan tarikh ship item itu akan dikosongkan.',
+      html: senaraiPilih('item', pilihanItem(calon, [])),
+      simpan: 'Pulangkan',
+      hantar(f) {
+        const pilih = nilaiPilih(f, 'item');
+        if (!pilih.length) return 'Tanda sekurang-kurangnya satu item.';
+        ubah(() => { pilih.forEach((id) => { const it = cariItem(id); if (it) undurKeBeli(it); }); }, pilih.length + ' item kembali ke Belum Ship.');
         return '';
       },
     });
@@ -1788,8 +1810,13 @@
     html += htmlKos(it);
     if (it.catatan) html += '<div class="catatan-penuh">' + esc(it.catatan) + '</div>';
 
+    const undur = {
+      ship: 'Batal declare · kembali ke Belum Ship', hub: 'Batal · kembali ke Belum Ship',
+      kotak: 'Keluarkan dari kotak', post: 'Keluarkan dari kotak', sampai: 'Keluarkan dari kotak', hantar: 'Batal serah · kembali ke Sampai',
+    }[p];
     html += '<div class="grid-aksi" style="margin-top:12px">' +
-      (bk > 0 ? '<button class="btn" type="button" data-aksi="edit">Edit</button>' : '') +
+      (undur ? '<button class="btn penuh" type="button" data-aksi="undur">' + esc(undur) + '</button>' : '') +
+      (bk > 0 ? '<button class="btn" type="button" data-aksi="edit">Edit item</button>' : '') +
       '<button class="btn bahaya' + (bk > 0 ? '' : ' penuh') + '" type="button" data-aksi="padam">Padam</button></div>';
 
     html += '<h3>Sejarah bayaran</h3>';
@@ -1819,6 +1846,14 @@
     else if (a === 'bayar') bukaBayar(it);
     else if (a === 'edit') borangItem(it);
     else if (a === 'perjalanan') borangPerjalanan(it);
+    else if (a === 'undur') {
+      const p = peringkat(it);
+      ubah(() => {
+        if (p === 'ship' || p === 'hub') undurKeBeli(it);
+        else if (p === 'hantar') it.hantarId = null;
+        else { it.kotakId = null; if (!it.tHub) it.tHub = it.tShip || Date.now(); }
+      }, labelItem(it) + ': ' + (p === 'ship' || p === 'hub' ? 'kembali ke Belum Ship.' : p === 'hantar' ? 'kembali ke Sampai.' : 'dikeluarkan dari kotak (Di hub BNS).'));
+    }
     else if (a === 'bukaOrder') bukaOrder(it.orderId);
     else if (a === 'bukaKotak') bukaKotak(it.kotakId);
     else if (a === 'declare') borangDeclare([it.id]);
