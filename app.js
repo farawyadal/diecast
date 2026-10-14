@@ -38,14 +38,14 @@
   const KUNCI_TETAPAN = 'diecast-tetapan';
 
   const TAB = {
-    beli: 'Belum Ship', otw: 'OTW', sampai: 'Sampai', hantar: 'Hantar', luar: 'Personal', arkib: 'Arkib',
+    beli: 'Tempahan', otw: 'Transit', sampai: 'Tiba', hantar: 'Penghantaran', luar: 'Peribadi', arkib: 'Arkib',
   };
   const PERINGKAT = {
-    beli: 'Belum ship', ship: 'Ke Oregon', hub: 'Di Oregon', keHK: 'Ke Hong Kong', hk: 'Di Hong Kong', kotak: 'Consolidate', post: 'Dipost ke MY',
-    sampai: 'Sampai MY', hantar: 'Dihantar', selesai: 'Selesai',
+    beli: 'Belum ship', ship: 'Ke Oregon', hub: 'Gudang Oregon', keHK: 'Ke Hong Kong', hk: 'Gudang Hong Kong', kotak: 'Consolidate', post: 'Dipost ke MY',
+    sampai: 'Tiba di Malaysia', hantar: 'Dihantar', selesai: 'Selesai',
   };
   const TAB_PERINGKAT = { beli: 'beli', ship: 'otw', hub: 'otw', keHK: 'otw', hk: 'otw', kotak: 'otw', post: 'otw', sampai: 'sampai', hantar: 'hantar', selesai: 'arkib' };
-  const STATUS = { lunas: 'Dah bayar', depo: 'Depo', belum: 'Belum bayar', tiada: 'Tiada harga' };
+  const STATUS = { lunas: 'Lunas', depo: 'Deposit', belum: 'Belum bayar', tiada: 'Tiada harga' };
   const BULAN = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const AKU = 'AKU';
 
@@ -292,7 +292,7 @@
   function simpan(opt) {
     kemasRujukan();
     if (!(opt && opt.kekal)) data.diubah = Date.now();
-    try { localStorage.setItem(KUNCI, JSON.stringify(eksportData())); } catch (e) { toast('Tak dapat simpan dalam peranti ini.'); }
+    try { localStorage.setItem(KUNCI, JSON.stringify(eksportData())); } catch (e) { toast('Tidak dapat simpan dalam peranti ini.'); }
     if (!(opt && opt.kekal)) jadualSelaras();
   }
 
@@ -337,7 +337,7 @@
   const tabItem = (it) => (it.kat === 'luar' ? (it.arkib ? 'arkib' : 'luar') : TAB_PERINGKAT[peringkat(it)]);
 
   function namaKotak(k) { return k.no || ('Kotak ' + tarikh(k.tBuat)); }
-  function labelKotak(k) { return k.tSampai ? 'Sampai MY' : k.tPost ? 'Dipost ke MY' : 'Tunggu tracking Skynet'; }
+  function labelKotak(k) { return k.tSampai ? 'Tiba di Malaysia' : k.tPost ? 'Dipost ke MY' : 'Tunggu tracking Skynet'; }
   function tahapKotak(k) { return k.tSampai ? 'sampai' : k.tPost ? 'post' : 'kotak'; }
   function labelOrder(o) { return (o.no || 'Tanpa no.') + (o.kedai && o.kedai !== 'Mattel Creations' ? ' · ' + o.kedai : ''); }
 
@@ -561,8 +561,8 @@
     const bk = bakiPositif(wangItem);
     $('ringkas').innerHTML =
       '<div class="kotak"><span class="label">' + senarai.length + ' item</span><span class="nilai">' + rm(jumlah) + '</span></div>' +
-      '<div class="kotak"><span class="label">' + (luar ? 'Aku dah bayar' : 'Dah terima') + '</span><span class="nilai">' + rm(bayar) + '</span></div>' +
-      '<div class="kotak baki' + (bk <= 0 ? ' sifar' : '') + '"><span class="label">' + (luar ? 'Baki aku' : 'Baki kastemer') + '</span><span class="nilai">' + rm(bk) + '</span></div>';
+      '<div class="kotak"><span class="label">' + (luar ? 'Telah dibayar' : 'Diterima') + '</span><span class="nilai">' + rm(bayar) + '</span></div>' +
+      '<div class="kotak baki' + (bk <= 0 ? ' sifar' : '') + '"><span class="label">' + (luar ? 'Baki perlu dibayar' : 'Baki') + '</span><span class="nilai">' + rm(bk) + '</span></div>';
   }
 
   function barisPeringkat(it) {
@@ -592,7 +592,7 @@
         (bk < 0 ? '<span>Lebih <b>' + rm(-bk) + '</b></span>' : '') + '</div>';
     }
     const aku = it.kat === 'aku';
-    const pil = aku ? '<span class="pil st-aku">Aku</span>' : '<span class="pil st-' + st + '">' + STATUS[st] + '</span>';
+    const pil = aku ? '<span class="pil st-aku">Sendiri</span>' : '<span class="pil st-' + st + '">' + STATUS[st] + '</span>';
     let bawah = opt.peringkat === false ? '' : barisPeringkat(it);
     if (it.arkib) bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + '</div>';
     else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
@@ -656,7 +656,7 @@
 
   async function leretBayar(it) {
     const bk = baki(it);
-    if (bk <= 0) { toast(it.harga > 0 ? labelItem(it) + ' dah bayar penuh.' : labelItem(it) + ' belum ada harga.'); return; }
+    if (bk <= 0) { toast(it.harga > 0 ? labelItem(it) + ' telah dibayar penuh.' : labelItem(it) + ' belum ada harga.'); return; }
     const siapa = it.kat === 'jual' ? it.orang : 'aku';
     const ok = await sahkan({
       tajuk: 'Bayar penuh?',
@@ -664,7 +664,7 @@
       ya: 'Rekod ' + rm(bk),
     });
     if (!ok) return;
-    ubah(() => { it.bayaran.push({ id: idBaru(), amaun: bk, t: Date.now(), nota: 'Bayar penuh' }); }, rm(bk) + ' direkod. ' + labelItem(it) + ' dah bayar penuh.');
+    ubah(() => { it.bayaran.push({ id: idBaru(), amaun: bk, t: Date.now(), nota: 'Bayar penuh' }); }, rm(bk) + ' direkod. ' + labelItem(it) + ' telah dibayar penuh.');
   }
 
   function leretArkib(it) {
@@ -717,8 +717,8 @@
     let html = '';
 
     if (tab === 'beli') {
-      html += '<div class="bar-aksi"><button type="button" class="btn kecil utama" data-g="orderCM">+ Order CM</button>' +
-        '<button type="button" class="btn kecil" data-g="senaraiOrder">Senarai order</button></div>';
+      // Butang Order CM ada pada kumpulan "Belum dibeli"; bar ini hanya bila kumpulan itu tiada.
+      if (!nampak.some((it) => !it.orderId)) html += '<div class="bar-aksi"><button type="button" class="btn kecil utama" data-g="orderCM">+ Order CM</button></div>';
       const kump = new Map();
       nampak.sort(urut).forEach((it) => {
         const k = it.orderId || '-';
@@ -731,7 +731,7 @@
       }).forEach(([k, its]) => {
         const o = cariOrder(k);
         html += htmlKumpulan({
-          tajuk: o ? labelOrder(o) : 'Tempahan · belum beli',
+          tajuk: o ? labelOrder(o) : 'Belum dibeli',
           sub: o ? 'Dibeli ' + tarikh(o.tBeli) + (o.akaun ? ' · ' + esc(o.akaun) : '') + ' · ' + bilHari(o.tBeli) + ' hari' : its.length + ' item belum ada order CM',
           buka: o ? 'order:' + o.id : '',
           items: its,
@@ -753,7 +753,7 @@
           buka: 'kotak:' + k.id,
           items: its,
           kad: { orang: true, peringkat: false },
-          aksi: [k.tPost ? { g: 'sampaiMY', nilai: k.id, label: 'Sampai MY', kelas: 'utama' } : { g: 'skynet', nilai: k.id, label: 'Isi Skynet', kelas: 'utama' }],
+          aksi: [k.tPost ? { g: 'sampaiMY', nilai: k.id, label: 'Tiba di Malaysia', kelas: 'utama' } : { g: 'skynet', nilai: k.id, label: 'Tracking Skynet', kelas: 'utama' }],
         });
       });
       const senaraiId = (its) => its.map((it) => it.id).join(',');
@@ -762,9 +762,9 @@
         if (!its.length) return;
         html += htmlKumpulan({ titik: p, tajuk, sub: its.length + ' item' + (sub ? ' · ' + sub : ''), items: its, kad: { orang: true }, aksi: aksi(its) });
       };
-      kumpPeringkat('hk', 'Di Hong Kong', 'sedia consolidate', () => [{ g: 'kotakBaru', nilai: 'hk', label: 'Consolidate', kelas: 'utama' }]);
-      kumpPeringkat('keHK', 'Oregon → Hong Kong', '', (its) => [{ g: 'hk', nilai: senaraiId(its), label: 'Sampai HK', kelas: 'utama' }]);
-      kumpPeringkat('hub', 'Di Oregon', '', (its) => [{ g: 'keHK', nilai: senaraiId(its), label: 'Ke HK' }, { g: 'hk', nilai: senaraiId(its), label: 'Sampai HK' }]);
+      kumpPeringkat('hk', 'Gudang Hong Kong', 'sedia consolidate', () => [{ g: 'kotakBaru', nilai: 'hk', label: 'Consolidate', kelas: 'utama' }]);
+      kumpPeringkat('keHK', 'Oregon → Hong Kong', '', (its) => [{ g: 'hk', nilai: senaraiId(its), label: 'Tiba di HK', kelas: 'utama' }]);
+      kumpPeringkat('hub', 'Gudang Oregon', '', (its) => [{ g: 'keHK', nilai: senaraiId(its), label: 'Hantar ke HK' }, { g: 'hk', nilai: senaraiId(its), label: 'Tiba di HK' }]);
       const keHub = nampak.filter((it) => peringkat(it) === 'ship');
       const parcel = new Map();
       keHub.forEach((it) => {
@@ -776,11 +776,11 @@
         const tMin = Math.min(...its.map((it) => it.tShip || Date.now()));
         html += htmlKumpulan({
           titik: 'ship',
-          tajuk: trk === '\u0000lama' ? 'OTW · dari Excel' : trk ? 'Ke Oregon · ' + trk : 'Ke Oregon · tanpa tracking',
-          sub: trk === '\u0000lama' ? 'Tiada butiran perjalanan · masukkan ke kotak bila tahu' :
+          tajuk: trk === '\u0000lama' ? 'Dalam transit · data lama' : trk ? 'Ke Oregon · ' + trk : 'Ke Oregon · tanpa tracking',
+          sub: trk === '\u0000lama' ? 'Tiada butiran perjalanan · masukkan ke kotak apabila diketahui' :
             'Ship ' + tarikh(tMin) + ' · ' + bilHari(tMin) + ' hari' + (its.some((it) => !it.tDeclare) ? ' · <span class="tag-amaran">Belum declare</span>' : ''),
           items: its, kad: { orang: true, peringkat: false },
-          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Belum ship?' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Sampai Oregon' }],
+          aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Pulangkan' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Tiba di Oregon' }],
         });
       });
     } else if (tab === 'sampai') {
@@ -789,10 +789,10 @@
         const bk = bakiPositif(g.items);
         const aksi = [];
         if (!aku && bk > 0) aksi.push({ g: 'waBaki', nilai: g.kunci, label: IKON_WA + 'Baki' });
-        aksi.push(aku ? { g: 'ambil', nilai: g.items.map((it) => it.id).join(','), label: 'Dah ambil', kelas: 'utama' }
-          : { g: 'serah', nilai: g.kunci, label: 'Serah', kelas: 'utama' });
+        aksi.push(aku ? { g: 'ambil', nilai: g.items.map((it) => it.id).join(','), label: 'Diterima', kelas: 'utama' }
+          : { g: 'serah', nilai: g.kunci, label: 'Hantar', kelas: 'utama' });
         html += htmlKumpulan({
-          tajuk: aku ? 'Barang aku' : g.nama,
+          tajuk: aku ? 'Barang sendiri' : g.nama,
           sub: g.items.length + ' item' + (bk > 0 && !aku ? ' · baki <b>' + rm(bk) + '</b>' : ''),
           buka: aku ? '' : 'orang:' + g.kunci,
           items: g.items, kad: { peringkat: false },
@@ -814,13 +814,13 @@
               (bk > 0 ? ' · baki <b>' + rm(bk) + '</b>' : ''),
             buka: 'hantar:' + h.id,
             items: its, kad: { peringkat: false },
-            aksi: [{ g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Dah terima', kelas: 'utama' }],
+            aksi: [{ g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
           });
         });
     } else if (tab === 'luar') {
       ikutOrang(nampak.sort(urut)).forEach((g) => {
         const bk = bakiPositif(g.items);
-        html += htmlKumpulan({ tajuk: g.nama, sub: g.items.length + ' item' + (bk > 0 ? ' · baki aku <b>' + rm(bk) + '</b>' : ''), items: g.items, kad: {} });
+        html += htmlKumpulan({ tajuk: g.nama, sub: g.items.length + ' item' + (bk > 0 ? ' · baki perlu dibayar <b>' + rm(bk) + '</b>' : ''), items: g.items, kad: {} });
       });
     } else if (tab === 'arkib') {
       const kump = new Map();
@@ -835,11 +835,11 @@
 
     if (!nampak.length) {
       const kosong = ditapis ? 'Tiada item yang padan.' : {
-        beli: 'Tiada tempahan. Tekan Tempahan baru bila kastemer order.',
+        beli: 'Tiada tempahan. Tekan Tempahan baru apabila pelanggan membuat tempahan.',
         otw: 'Tiada barang dalam perjalanan.',
         sampai: 'Tiada barang yang sedang menunggu untuk diserah.',
         hantar: 'Tiada barang yang sedang dihantar.',
-        luar: 'Tiada barang personal. Ini untuk barang yang kau beli dari orang lain.',
+        luar: 'Tiada barang peribadi. Bahagian ini untuk barang yang dibeli daripada pihak lain.',
         arkib: 'Belum ada item selesai.',
       }[tab];
       if (tab !== 'beli') html = '';
@@ -870,9 +870,9 @@
       const belum = itemTab('beli');
       borangDeclare([], v && v !== '-' ? v : null);
     }
-    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Sampai Oregon', 'sampai hub Oregon.');
+    else if (g === 'hub') borangTanda(v.split(','), 'tHub', 'Tiba di Oregon', 'sampai hub Oregon.');
     else if (g === 'keHK') borangTanda(v.split(','), 'tKeHK', 'Dihantar ke Hong Kong', 'dihantar ke Hong Kong.');
-    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Sampai Hong Kong', 'sampai Hong Kong. Boleh consolidate.');
+    else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Tiba di Hong Kong', 'sampai Hong Kong. Boleh consolidate.');
     else if (g === 'undur') borangUndur(v.split(','));
     else if (g === 'orderCM') borangOrderBaru([]);
     else if (g === 'senaraiOrder') bukaSenaraiOrder();
@@ -881,7 +881,7 @@
     else if (g === 'sampaiMY') borangSampai(cariKotak(v));
     else if (g === 'waBaki') { const its = itemTab('sampai').filter((it) => kunciOrang(it.orang) === v); waBaki(its); }
     else if (g === 'serah') borangSerah(v);
-    else if (g === 'ambil') ubah(() => { v.split(',').forEach((id) => { const it = cariItem(id); if (it) it.arkib = Date.now(); }); }, 'Barang aku diarkibkan.');
+    else if (g === 'ambil') ubah(() => { v.split(',').forEach((id) => { const it = cariItem(id); if (it) it.arkib = Date.now(); }); }, 'Barang sendiri diarkibkan.');
     else if (g === 'waHantar') waHantar(cariHantar(v));
     else if (g === 'terima') terimaHantar(cariHantar(v));
   }
@@ -898,7 +898,7 @@
   $('btnKeluarArkib').addEventListener('click', () => { tetapan.tab = 'beli'; simpanTetapan(); papar(); });
 
   $('cip').innerHTML = '<button type="button" data-status="semua">Semua</button><button type="button" data-status="belum"><i class="titik s-belum"></i>Belum bayar</button>' +
-    '<button type="button" data-status="depo"><i class="titik s-depo"></i>Depo</button><button type="button" data-status="lunas"><i class="titik s-lunas"></i>Dah bayar</button>';
+    '<button type="button" data-status="depo"><i class="titik s-depo"></i>Deposit</button><button type="button" data-status="lunas"><i class="titik s-lunas"></i>Lunas</button>';
   $('cip').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-status]');
     if (!b) return;
@@ -977,7 +977,7 @@
       return {
         nilai: it.id,
         label: labelItem(it),
-        sub: (it.kat === 'aku' ? 'Aku' : it.orang) + (o && o.no ? ' · ' + o.no : '') + (it.trackUS ? ' · ' + it.trackUS : ''),
+        sub: (it.kat === 'aku' ? 'Sendiri' : it.orang) + (o && o.no ? ' · ' + o.no : '') + (it.trackUS ? ' · ' + it.trackUS : ''),
         pilih: set.has(it.id),
       };
     });
@@ -1003,9 +1003,9 @@
         '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(b.jenis || '') + '"></label>' +
         '<label class="medan">Item<input name="nama" maxlength="80" placeholder="Contoh: Bumblebee" value="' + esc(b.nama || '') + '"></label></div>' +
         '<div class="dua"><label class="medan kecil">Qty<input name="qty" type="number" inputmode="numeric" min="1" step="1" value="' + esc(b.qty || 1) + '"></label>' +
-        '<label class="medan">Kastemer <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label></div>' +
+        '<label class="medan">Pelanggan <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label></div>' +
         '<div class="dua"><label class="medan">Harga jual (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.harga == null ? '' : b.harga) + '"></label>' +
-        '<label class="medan">Dah bayar (RM) <small>(pilihan)</small><input name="bayar" type="number" inputmode="decimal" min="0" step="0.01" value=""></label></div>' +
+        '<label class="medan">Telah dibayar (RM) <small>(pilihan)</small><input name="bayar" type="number" inputmode="decimal" min="0" step="0.01" value=""></label></div>' +
         '<div class="baris-btn"><button type="button" class="btn kecil" data-baris="salin">Salin baris</button>' +
         '<button type="button" class="btn kecil bahaya" data-baris="buang">Buang</button></div></div>';
     }
@@ -1014,7 +1014,7 @@
       '<label class="medan">Item<input name="nama" maxlength="80" placeholder="Contoh: Skyline R32" value="' + esc(b.nama || '') + '"></label></div>' +
       '<div class="dua"><label class="medan kecil">Qty<input name="qty" type="number" inputmode="numeric" min="1" step="1" value="' + esc(b.qty || 1) + '"></label>' +
       '<label class="medan"><span data-label-beli>Harga beli seunit (US$)</span><input name="beli" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.beli == null ? '' : b.beli) + '"></label></div>' +
-      '<div class="dua"><label class="medan">Kastemer <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label>' +
+      '<div class="dua"><label class="medan">Pelanggan <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label>' +
       '<label class="medan">Harga jual (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.harga == null ? '' : b.harga) + '"></label></div>' +
       '<div class="baris-btn"><button type="button" class="btn kecil" data-baris="salin">Salin baris</button>' +
       '<button type="button" class="btn kecil bahaya" data-baris="buang">Buang</button></div></div>';
@@ -1030,11 +1030,11 @@
   // Senarai item untuk ditag: setiap baris ada kotak tanda dan harga beli seunit (nampak bila ditanda).
   function htmlTag(calon, o) {
     if (!calon.length) return '<p class="nota kosong-kecil">Tiada item tempahan yang belum ada order. Tambah item lain di bawah, atau masukkan tempahan dulu.</p>';
-    return (calon.length > 6 ? '<input class="tapis-pilih" type="search" data-tapis-pilih placeholder="Tapis: nama item atau kastemer">' : '') +
+    return (calon.length > 6 ? '<input class="tapis-pilih" type="search" data-tapis-pilih placeholder="Tapis: nama item atau pelanggan">' : '') +
       '<div class="senarai-tag">' + calon.map((it) => {
         const pilih = o && it.orderId === o.id;
         return '<div class="tag-baris"><label><input type="checkbox" name="tag" value="' + esc(it.id) + '"' + (pilih ? ' checked' : '') + '>' +
-          '<span><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Aku' : it.orang) + ' · ' + esc(PERINGKAT[peringkat(it)]) +
+          '<span><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Sendiri' : it.orang) + ' · ' + esc(PERINGKAT[peringkat(it)]) +
           (it.harga ? ' · jual ' + rm(it.harga) : '') + '</small></span></label>' +
           '<label class="tag-beli"><span data-label-beli-pendek>US$ seunit</span><input type="number" inputmode="decimal" min="0" step="0.01" name="beli_' + esc(it.id) + '"' +
           ' data-nama="' + esc(kunciOrang(it.jenis + ' ' + it.nama)) + '" data-qty="' + it.qty + '" value="' + (pilih && it.beli !== null ? it.beli : '') + '"></label></div>';
@@ -1142,7 +1142,7 @@
       tulis('Mengambil kadar ' + tarikh(dariInput(f.tBeli.value)) + '…');
       const h = await kadarPasaran(f.tBeli.value || tarikhInput());
       if (n !== giliran) return;
-      if (!h) { tulis('Tak dapat ambil kadar (tiada internet?). Taip sendiri, atau isi jumlah dicaj kad.'); return; }
+      if (!h) { tulis('Tidak dapat ambil kadar (tiada internet?). Taip sendiri, atau isi jumlah dicaj kad.'); return; }
       const k = denganMarkup(h.kadar);
       inp.value = k;
       inp.dataset.auto = String(k);
@@ -1196,10 +1196,10 @@
     if (kadar >= 2 && kadar <= 10) return '';
     const caj = nomborAtauNull(f.caj.value);
     if (caj) {
-      return 'Kadar dikira ' + kadar + ' (RM' + caj + ' ÷ US$' + bulat(jumlahAsal) + '), tak munasabah. ' +
-        'Pastikan harga beli semua item dan shipping dah diisi, atau kosongkan "jumlah dicaj kad" dan taip kadar terus (contoh 4.25).';
+      return 'Kadar dikira ' + kadar + ' (RM' + caj + ' ÷ US$' + bulat(jumlahAsal) + '), tidak munasabah. ' +
+        'Pastikan harga beli semua item dan shipping telah diisi, atau kosongkan "jumlah dicaj kad" dan taip kadar terus (contoh 4.25).';
     }
-    return 'Kadar ' + kadar + ' tak munasabah. Kadar ialah berapa RM untuk US$1 (contoh 4.25), bukan jumlah RM.';
+    return 'Kadar ' + kadar + ' tidak munasabah. Kadar ialah berapa RM untuk US$1 (contoh 4.25), bukan jumlah RM.';
   }
 
   function kiraKadar(f, jumlahAsal) {
@@ -1214,7 +1214,7 @@
     isiDatalistOrang();
     borang({
       tajuk: 'Tempahan baru',
-      nota: 'Barang yang kastemer tempah. Bila dah beli di CM, buat Order CM dan tag item ini.',
+      nota: 'Barang yang ditempah pelanggan. Selepas membeli di CM, rekod Order CM dan tag item ini.',
       html: '<div id="barisOrder" data-tanpa-beli>' + htmlBarisOrder(null, true) + '</div>' +
         '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item</button>',
       simpan: 'Simpan tempahan',
@@ -1222,7 +1222,7 @@
         const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((x) => x.nama);
         if (!baris.length) return 'Isi sekurang-kurangnya satu item.';
         const tiada = baris.find((x) => !x.orang);
-        if (tiada) return 'Isi kastemer untuk ' + tiada.nama + ' (taip AKU untuk barang sendiri).';
+        if (tiada) return 'Isi pelanggan untuk ' + tiada.nama + ' (taip AKU untuk barang sendiri).';
         ubah(() => {
           baris.forEach((x, i) => {
             const aku = kunciOrang(x.orang) === AKU;
@@ -1254,7 +1254,7 @@
         medanKadar(null) +
         '<h3>Tag item tempahan</h3><p class="nota">Tanda item yang dibeli dalam order ini dan isi harga beli seunit. Item sama nama diisi sendiri.</p>' +
         htmlTag(calon, null) +
-        '<h3>Item lain <small>(tiada tempahan, contoh untuk aku)</small></h3><div id="barisOrder"></div>' +
+        '<h3>Item lain <small>(tiada tempahan, contoh: barang sendiri)</small></h3><div id="barisOrder"></div>' +
         '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item lain</button>' +
         '<p class="nota" id="jumlahOrder"></p>',
       simpan: 'Simpan order',
@@ -1267,7 +1267,7 @@
         const baris = [...f.querySelectorAll('.baris-order')].map(bacaBaris).filter((x) => x.nama);
         if (!tag.length && !baris.length) return 'Tag sekurang-kurangnya satu item, atau tambah item lain.';
         const tiada = baris.find((x) => !x.orang);
-        if (tiada) return 'Isi kastemer untuk ' + tiada.nama + ' (taip AKU untuk barang sendiri).';
+        if (tiada) return 'Isi pelanggan untuk ' + tiada.nama + ' (taip AKU untuk barang sendiri).';
         const asal = tag.reduce((j, t) => j + (Number(t.beli) || 0) * t.qty, 0) +
           baris.reduce((j, x) => j + (Number(x.beli) || 0) * (parseInt(x.qty, 10) || 1), 0) + (Number(f.ship.value) || 0);
         const kadar = kiraKadar(f, asal);
@@ -1333,8 +1333,8 @@
 
   function paparSenaraiOrder() {
     const ords = data.orders.slice().sort((a, b) => b.tBeli - a.tBeli);
-    let html = '<h2>Senarai order</h2>';
-    if (!ords.length) html += '<p class="kosong">Belum ada order. Tekan Order CM bila dah beli.</p>';
+    let html = '<h2>Senarai order CM</h2>';
+    if (!ords.length) html += '<p class="kosong">Belum ada order. Tekan + Order CM selepas membeli.</p>';
     html += ords.map((o) => {
       const its = itemOrder(o);
       const asal = its.reduce((j, it) => j + (beliAsal(it) || 0), 0) + (o.ship || 0);
@@ -1426,7 +1426,7 @@
     html += '<table class="jadual"><thead><tr><th>Item</th><th>Beli</th><th>Kos RM</th></tr></thead><tbody>' +
       its.map((it) => {
         const k = kosItem(it);
-        return '<tr data-item="' + esc(it.id) + '"><td><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Aku' : it.orang) + ' · ' + esc(PERINGKAT[peringkat(it)]) + '</small></td>' +
+        return '<tr data-item="' + esc(it.id) + '"><td><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Sendiri' : it.orang) + ' · ' + esc(PERINGKAT[peringkat(it)]) + '</small></td>' +
           '<td>' + (it.beli === null ? '<span class="tag-amaran">?</span>' : wang(beliAsal(it), s)) + '</td>' +
           '<td>' + (k.barang === null ? '-' : rm(k.barang + k.shipCM)) + '</td></tr>';
       }).join('') + '</tbody></table>';
@@ -1468,12 +1468,12 @@
       b.disabled = true;
       b.textContent = 'Mengambil kadar…';
       const h = await kadarPasaran(tarikhInput(o.tBeli));
-      if (!h) { toast('Tak dapat ambil kadar. Semak internet.'); paparOrder(); return; }
+      if (!h) { toast('Tidak dapat ambil kadar. Semak internet.'); paparOrder(); return; }
       const k = denganMarkup(h.kadar);
       ubah(() => { o.kadar = k; o.kadarNota = notaPasaran(h); }, 'Kadar US$1 = RM' + k + ' (' + tarikh(dariInput(h.tarikh)) + ').');
     }
     else if (a === 'padam') {
-      const ok = await sahkan({ tajuk: 'Padam order ' + (o.no || '') + '?', teks: 'Item dalam order ini tak dipadam. Ia cuma tak lagi ada harga beli dari order ini.', ya: 'Padam', bahaya: true });
+      const ok = await sahkan({ tajuk: 'Padam order ' + (o.no || '') + '?', teks: 'Item dalam order ini tidak dipadam. Ia cuma tidak lagi ada harga beli dari order ini.', ya: 'Padam', bahaya: true });
       if (!ok) return;
       ubah(() => { data.orders = data.orders.filter((x) => x !== o); }, 'Order dipadam.');
       tutup($('dlgOrder'));
@@ -1532,7 +1532,7 @@
       nota: 'Tanda item yang ship dalam satu parcel. No. order yang sama boleh di-declare lebih dari sekali.',
       html: '<div class="dua">' + medanTarikh('t', 'Tarikh ship', Date.now(), true) +
         medanTeks('track', 'Tracking US <small>(pilihan)</small>', '', ' maxlength="60" placeholder="FedEx / USPS" data-fokus') + '</div>' +
-        '<label class="tanda"><input type="checkbox" name="declare" checked> Dah declare di Buyandship</label>' +
+        '<label class="tanda"><input type="checkbox" name="declare" checked> Telah declare di Buyandship</label>' +
         senaraiPilih('item', pilihanItem(calon, tanda)),
       simpan: 'Declare',
       hantar(f) {
@@ -1548,7 +1548,7 @@
             it.tShip = t; it.trackUS = trk;
             it.tDeclare = dec ? t : null;
           });
-        }, ids.length + ' item kini OTW ke hub.');
+        }, ids.length + ' item dalam perjalanan ke gudang BNS.');
         return '';
       },
     });
@@ -1562,14 +1562,14 @@
   function borangUndur(ids) {
     const calon = ids.map(cariItem).filter(Boolean);
     borang({
-      tajuk: 'Pulangkan ke Belum Ship',
+      tajuk: 'Pulangkan ke Tempahan',
       nota: 'Tanda item yang sebenarnya belum ship. Tracking dan tarikh ship item itu akan dikosongkan.',
       html: senaraiPilih('item', pilihanItem(calon, [])),
       simpan: 'Pulangkan',
       hantar(f) {
         const pilih = nilaiPilih(f, 'item');
         if (!pilih.length) return 'Tanda sekurang-kurangnya satu item.';
-        ubah(() => { pilih.forEach((id) => { const it = cariItem(id); if (it) undurKeBeli(it); }); }, pilih.length + ' item kembali ke Belum Ship.');
+        ubah(() => { pilih.forEach((id) => { const it = cariItem(id); if (it) undurKeBeli(it); }); }, pilih.length + ' item kembali ke Tempahan.');
         return '';
       },
     });
@@ -1686,11 +1686,11 @@
   function borangSampai(k) {
     if (!k) return;
     borang({
-      tajuk: 'Kotak sampai MY',
-      nota: esc(namaKotak(k)) + ' · item akan pindah ke tab Sampai untuk sorting.',
+      tajuk: 'Kotak tiba di Malaysia',
+      nota: esc(namaKotak(k)) + ' · item akan dipindah ke tab Tiba untuk diasingkan.',
       html: medanTarikh('t', 'Tarikh sampai', Date.now(), true),
       hantar(f) {
-        ubah(() => { k.tSampai = dariInput(f.t.value); if (!k.tPost) k.tPost = k.tSampai; }, namaKotak(k) + ' sampai. ' + itemKotak(k).length + ' item dalam tab Sampai.');
+        ubah(() => { k.tSampai = dariInput(f.t.value); if (!k.tPost) k.tPost = k.tSampai; }, namaKotak(k) + ' sampai. ' + itemKotak(k).length + ' item dalam tab Tiba.');
         return '';
       },
     });
@@ -1718,14 +1718,14 @@
     html += '<p class="butir-sub">' + its.length + ' item · kos posting ' + (k.kos === null ? '<span class="tag-amaran">belum diisi</span>' : rm(k.kos)) + '</p>';
     html += '<div class="grid-aksi">' +
       (!k.tPost ? '<button class="btn utama penuh" type="button" data-aksi="skynet">Isi tracking Skynet</button>'
-        : !k.tSampai ? '<button class="btn hijau penuh" type="button" data-aksi="sampai">Dah sampai MY</button>' : '') + '</div>';
+        : !k.tSampai ? '<button class="btn hijau penuh" type="button" data-aksi="sampai">Tiba di Malaysia</button>' : '') + '</div>';
     html += garisMasa([
       { label: 'Consolidate', t: k.tBuat, sub: k.kos !== null ? 'kos ' + rm(k.kos) : '' },
       { label: 'Dipost ke MY', t: k.tPost, sub: k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k.trackMY },
-      { label: 'Sampai MY', t: k.tSampai, sub: k.tSampai && k.tPost ? bilHari(k.tPost, k.tSampai) + ' hari perjalanan' : '' },
+      { label: 'Tiba di Malaysia', t: k.tSampai, sub: k.tSampai && k.tPost ? bilHari(k.tPost, k.tSampai) + ' hari perjalanan' : '' },
     ]);
     html += '<h3>Item (' + its.length + ')</h3><table class="jadual"><thead><tr><th>Item</th><th>Posting</th></tr></thead><tbody>' +
-      its.map((it) => '<tr data-item="' + esc(it.id) + '"><td><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Aku' : it.orang) + '</small></td><td>' +
+      its.map((it) => '<tr data-item="' + esc(it.id) + '"><td><b>' + esc(labelItem(it)) + '</b><small>' + esc(it.kat === 'aku' ? 'Sendiri' : it.orang) + '</small></td><td>' +
         (k.kos ? rm(kosItem(it).bns) : '-') + '</td></tr>').join('') + '</tbody></table>';
     html += '<div class="grid-aksi" style="margin-top:12px"><button class="btn" type="button" data-aksi="edit">Edit / urus item</button>' +
       '<button class="btn bahaya" type="button" data-aksi="padam">Padam kotak</button></div>';
@@ -1749,7 +1749,7 @@
     else if (a === 'sampai') borangSampai(k);
     else if (a === 'edit') borangKotak(k);
     else if (a === 'padam') {
-      const ok = await sahkan({ tajuk: 'Padam ' + namaKotak(k) + '?', teks: 'Item tak dipadam; ia kembali ke "Di Hong Kong".', ya: 'Padam', bahaya: true });
+      const ok = await sahkan({ tajuk: 'Padam ' + namaKotak(k) + '?', teks: 'Item tidak dipadam; ia kembali ke "Gudang Hong Kong".', ya: 'Padam', bahaya: true });
       if (!ok) return;
       ubah(() => { data.kotak = data.kotak.filter((x) => x !== k); }, 'Kotak dipadam.');
       tutup($('dlgKotak'));
@@ -1760,16 +1760,16 @@
 
   function borangSerah(kunci, tanda) {
     const calon = itemTab('sampai').filter((it) => kunciOrang(it.orang) === kunci);
-    if (!calon.length) { toast('Tiada item yang dah sampai untuk kastemer ini.'); return; }
+    if (!calon.length) { toast('Tiada item yang telah tiba untuk pelanggan ini.'); return; }
     const nama = calon[0].orang;
     const pilih = tanda && tanda.length ? tanda : calon.map((it) => it.id);
     borang({
-      tajuk: 'Serah pada ' + nama,
+      tajuk: 'Penghantaran kepada ' + nama,
       html: '<fieldset class="pilih-kat dua-pilih"><legend>Cara</legend>' +
         '<label><input type="radio" name="cara" value="pos" checked><span>Post J&amp;T</span></label>' +
         '<label><input type="radio" name="cara" value="sendiri"><span>Hantar sendiri</span></label></fieldset>' +
         '<div data-pos><div class="dua">' + medanTeks('track', 'Tracking J&amp;T', '', ' maxlength="60" data-fokus') +
-        medanNombor('kos', 'Kos J&amp;T (RM) <small>(aku tanggung)</small>', '') + '</div></div>' +
+        medanNombor('kos', 'Kos J&amp;T (RM) <small>(ditanggung sendiri)</small>', '') + '</div></div>' +
         medanTarikh('t', 'Tarikh', Date.now(), true) +
         '<h3>Item</h3>' + senaraiPilih('item', pilihanItem(calon, pilih)),
       simpan: 'Simpan',
@@ -1805,7 +1805,7 @@
         '<label><input type="radio" name="cara" value="sendiri"' + (h.cara === 'sendiri' ? ' checked' : '') + '><span>Hantar sendiri</span></label></fieldset>' +
         '<div class="dua">' + medanTeks('track', 'Tracking J&amp;T', h.track, ' maxlength="60"') + medanNombor('kos', 'Kos J&amp;T (RM)', h.kos === null ? '' : h.kos) + '</div>' +
         medanTarikh('t', 'Tarikh', h.t, true) +
-        '<label class="tanda"><input type="checkbox" name="batal"> Batalkan hantaran ini (item kembali ke Sampai)</label>',
+        '<label class="tanda"><input type="checkbox" name="batal"> Batalkan hantaran ini (item kembali ke Tiba)</label>',
       hantar(f) {
         if (f.batal.checked) {
           ubah(() => { itemHantar(h).forEach((it) => { it.hantarId = null; it.arkib = null; }); }, 'Hantaran dibatalkan.');
@@ -1825,7 +1825,7 @@
     ubah(() => {
       h.tTerima = Date.now();
       itemHantar(h).forEach((it) => { it.arkib = h.tTerima; });
-    }, h.orang + ' dah terima. Item masuk Arkib.');
+    }, h.orang + ' sahkan terima. Item dipindah ke Arkib.');
   }
 
   /* ---------- Item: butiran ---------- */
@@ -1865,16 +1865,16 @@
   function aksiUtama(it) {
     const p = peringkat(it);
     return {
-      beli: ['declare', 'Dah ship ke hub (declare)'],
-      ship: ['hub', 'Dah sampai Oregon'],
-      keHK: ['hk', 'Dah sampai Hong Kong'],
+      beli: ['declare', 'Rekod penghantaran ke BNS (declare)'],
+      ship: ['hub', 'Tiba di gudang Oregon'],
+      keHK: ['hk', 'Tiba di gudang Hong Kong'],
       hk: ['kotak', 'Consolidate (masuk kotak)'],
-      hub: ['keHK', 'Dah dihantar ke Hong Kong'],
+      hub: ['keHK', 'Dihantar ke Hong Kong'],
       kotak: ['bukaKotak', 'Buka kotak · isi Skynet'],
       post: ['bukaKotak', 'Buka kotak'],
-      sampai: it.kat === 'aku' ? ['ambil', 'Dah ambil · selesai'] : ['serah', 'Serah pada kastemer'],
-      hantar: ['terima', 'Kastemer dah terima'],
-      luar: ['ambil', 'Dah terima barang · arkib'],
+      sampai: it.kat === 'aku' ? ['ambil', 'Diterima · selesai'] : ['serah', 'Hantar kepada pelanggan'],
+      hantar: ['terima', 'Pelanggan sahkan terima'],
+      luar: ['ambil', 'Barang diterima · arkib'],
       selesai: ['pulih', 'Pulihkan dari Arkib'],
     }[p];
   }
@@ -1895,14 +1895,14 @@
 
     let html = '<div class="butir-kepala"><h2>' + (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') +
       esc(it.nama) + (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</h2>' +
-      (aku ? '<span class="pil st-aku">Aku</span>' : '<span class="pil st-' + st + '">' + STATUS[st] + '</span>') + '</div>';
-    html += '<p class="butir-sub">' + (aku ? 'Barang aku sendiri' : esc(luar ? 'Beli dari ' : 'Kastemer: ') + '<b>' + esc(it.orang || '-') + '</b>') +
+      (aku ? '<span class="pil st-aku">Sendiri</span>' : '<span class="pil st-' + st + '">' + STATUS[st] + '</span>') + '</div>';
+    html += '<p class="butir-sub">' + (aku ? 'Barang sendiri' : esc(luar ? 'Penjual: ' : 'Pelanggan: ') + '<b>' + esc(it.orang || '-') + '</b>') +
       (it.tel ? ' · <a href="tel:' + esc(it.tel.replace(/[^\d+]/g, '')) + '">' + esc(it.tel) + '</a>' : '') +
       (luar ? '' : '<br>' + esc(PERINGKAT[p] || '')) + '</p>';
 
     if (!aku || h > 0 || b > 0) {
       html += '<div class="wang3"><div><span>' + (it.kat === 'jual' ? 'Harga jual' : 'Harga') + '</span><b>' + rm(h) + '</b></div>' +
-        '<div><span>' + (luar || aku ? 'Aku dah bayar' : 'Dah terima') + '</span><b>' + rm(b) + '</b></div>' +
+        '<div><span>' + (luar || aku ? 'Telah dibayar' : 'Diterima') + '</span><b>' + rm(b) + '</b></div>' +
         '<div class="baki' + (bk <= 0 ? ' sifar' : '') + '"><span>' + (bk < 0 ? 'Terlebih' : 'Baki') + '</span><b>' + rm(Math.abs(bk)) + '</b></div></div>';
     }
 
@@ -1918,12 +1918,12 @@
       html += garisMasa([
         { label: 'Dibeli' + (o ? ' · ' + o.kedai : ''), t: o ? o.tBeli : null, kosong: 'Tiada order', sub: o && o.no ? esc(o.no) : '' },
         { label: 'Ship ke Oregon', t: it.tShip, sub: it.trackUS ? esc(it.trackUS) : '', salin: it.trackUS },
-        { label: 'Sampai Oregon', t: it.tHub },
+        { label: 'Tiba di Oregon', t: it.tHub },
         { label: 'Oregon → Hong Kong', t: it.tKeHK },
-        { label: 'Sampai Hong Kong', t: it.tHK },
+        { label: 'Tiba di Hong Kong', t: it.tHK },
         { label: 'Consolidate', t: k ? k.tBuat : null, sub: k ? esc(namaKotak(k)) : '' },
         { label: 'Dipost ke MY', t: k && k.tPost, sub: k && k.trackMY ? 'Skynet ' + esc(k.trackMY) : '', salin: k && k.trackMY },
-        { label: 'Sampai MY', t: k && k.tSampai },
+        { label: 'Tiba di Malaysia', t: k && k.tSampai },
         aku ? null : { label: hh && hh.cara === 'sendiri' ? 'Hantar sendiri' : 'Post J&T', t: hh ? hh.t : null, sub: hh && hh.track ? esc(hh.track) : '', salin: hh && hh.track },
         { label: 'Selesai', t: it.arkib },
       ].filter(Boolean));
@@ -1937,9 +1937,9 @@
     if (it.catatan) html += '<div class="catatan-penuh">' + esc(it.catatan) + '</div>';
 
     const undur = {
-      ship: 'Batal declare · kembali ke Belum Ship', hub: 'Batal · kembali ke Belum Ship',
-      keHK: 'Batal · kembali ke Belum Ship', hk: 'Batal · kembali ke Belum Ship',
-      kotak: 'Keluarkan dari kotak', post: 'Keluarkan dari kotak', sampai: 'Keluarkan dari kotak', hantar: 'Batal serah · kembali ke Sampai',
+      ship: 'Batal declare · kembali ke Tempahan', hub: 'Batal · kembali ke Tempahan',
+      keHK: 'Batal · kembali ke Tempahan', hk: 'Batal · kembali ke Tempahan',
+      kotak: 'Keluarkan dari kotak', post: 'Keluarkan dari kotak', sampai: 'Keluarkan dari kotak', hantar: 'Batal penghantaran · kembali ke Tiba',
     }[p];
     html += '<div class="grid-aksi" style="margin-top:12px">' +
       (undur ? '<button class="btn penuh" type="button" data-aksi="undur">' + esc(undur) + '</button>' : '') +
@@ -1979,7 +1979,7 @@
         if (['ship', 'hub', 'keHK', 'hk'].includes(p)) undurKeBeli(it);
         else if (p === 'hantar') it.hantarId = null;
         else { it.kotakId = null; ['tHub', 'tKeHK', 'tHK'].forEach((x) => { if (!it[x]) it[x] = it.tShip || Date.now(); }); }
-      }, labelItem(it) + ': ' + (['ship', 'hub', 'keHK', 'hk'].includes(p) ? 'kembali ke Belum Ship.' : p === 'hantar' ? 'kembali ke Sampai.' : 'dikeluarkan dari kotak (Di Hong Kong).'));
+      }, labelItem(it) + ': ' + (['ship', 'hub', 'keHK', 'hk'].includes(p) ? 'kembali ke Tempahan.' : p === 'hantar' ? 'kembali ke Tiba.' : 'dikeluarkan dari kotak (Di Hong Kong).'));
     }
     else if (a === 'bukaOrder') bukaOrder(it.orderId);
     else if (a === 'bukaKotak') bukaKotak(it.kotakId);
@@ -2047,8 +2047,8 @@
       tajuk: 'Betulkan tarikh',
       nota: esc(labelItem(it)) + '. Tarikh kotak (post, sampai) diubah dari skrin kotak.',
       html: '<div class="dua">' + medanTarikh('tShip', 'Ship ke Oregon', it.tShip) + medanTeks('trackUS', 'Tracking US', it.trackUS, ' maxlength="60"') + '</div>' +
-        '<div class="dua">' + medanTarikh('tDeclare', 'Declare BNS', it.tDeclare) + medanTarikh('tHub', 'Sampai Oregon', it.tHub) + '</div>' +
-        '<div class="dua">' + medanTarikh('tKeHK', 'Oregon → HK', it.tKeHK) + medanTarikh('tHK', 'Sampai Hong Kong', it.tHK) + '</div>' + kotakPilih,
+        '<div class="dua">' + medanTarikh('tDeclare', 'Declare BNS', it.tDeclare) + medanTarikh('tHub', 'Tiba di Oregon', it.tHub) + '</div>' +
+        '<div class="dua">' + medanTarikh('tKeHK', 'Oregon → HK', it.tKeHK) + medanTarikh('tHK', 'Tiba di Hong Kong', it.tHK) + '</div>' + kotakPilih,
       hantar(f) {
         ubah(() => {
           it.tShip = tarikhAtauNull(f.tShip.value);
@@ -2079,16 +2079,16 @@
     let html = '';
     if (!luar) {
       html += '<fieldset class="pilih-kat dua-pilih"><legend>Untuk</legend>' +
-        '<label><input type="radio" name="kat" value="jual"' + (kat === 'jual' ? ' checked' : '') + '><span>Kastemer</span></label>' +
-        '<label><input type="radio" name="kat" value="aku"' + (kat === 'aku' ? ' checked' : '') + '><span>Aku sendiri</span></label></fieldset>';
+        '<label><input type="radio" name="kat" value="jual"' + (kat === 'jual' ? ' checked' : '') + '><span>Pelanggan</span></label>' +
+        '<label><input type="radio" name="kat" value="aku"' + (kat === 'aku' ? ' checked' : '') + '><span>Sendiri</span></label></fieldset>';
     }
     html += '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" value="' + esc(nilai.jenis) + '"></label>' +
       '<label class="medan">Item<input name="nama" maxlength="80" required value="' + esc(nilai.nama) + '"' + (it ? '' : ' data-fokus') + '></label></div>' +
       '<div class="dua"><label class="medan kecil">Qty<input name="qty" type="number" inputmode="numeric" min="1" step="1" value="' + esc(nilai.qty) + '"></label>' +
-      '<label class="medan" data-orang>' + (luar ? 'Beli dari' : 'Kastemer') + '<input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(kat === 'aku' ? '' : nilai.orang) + '"></label></div>' +
+      '<label class="medan" data-orang>' + (luar ? 'Beli dari' : 'Pelanggan') + '<input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(kat === 'aku' ? '' : nilai.orang) + '"></label></div>' +
       '<div data-orang>' + medanTeks('tel', 'No. telefon <small>(pilihan)</small>', nilai.tel, ' type="tel" inputmode="tel" maxlength="30"') + '</div>' +
       '<div data-harga>' + medanNombor('harga', luar ? 'Harga (RM)' : 'Harga jual (RM)', nilai.harga || '') + '</div>';
-    if (!it) html += medanNombor('bayarAwal', luar ? 'Aku dah bayar (RM)' : 'Dah bayar (RM)', '');
+    if (!it) html += medanNombor('bayarAwal', luar ? 'Telah dibayar (RM)' : 'Telah dibayar (RM)', '');
     if (!luar) {
       html += ordPilih +
         '<div class="dua"><label class="medan" data-beli>Harga beli seunit <small>(mata wang order)</small><input name="beli" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(nilai.beli === null ? '' : nilai.beli) + '"></label>' +
@@ -2098,7 +2098,7 @@
 
     borang({
       tajuk: it ? 'Edit item' : luar ? 'Tambah barang personal' : 'Tambah item',
-      nota: luar && !it ? 'Barang yang kau beli dari orang lain (contoh: Enal).' : '',
+      nota: luar && !it ? 'Barang yang dibeli daripada pihak lain (contoh: Enal).' : '',
       html,
       lepas: (f) => {
         const segar = () => {
@@ -2117,7 +2117,7 @@
       hantar(f) {
         const k = luar ? 'luar' : f.kat.value;
         if (!f.nama.value.trim()) return 'Isi nama item.';
-        if (k !== 'aku' && !f.orang.value.trim()) return luar ? 'Isi nama penjual.' : 'Isi nama kastemer.';
+        if (k !== 'aku' && !f.orang.value.trim()) return luar ? 'Isi nama penjual.' : 'Isi nama pelanggan.';
         const v = {
           kat: k, jenis: f.jenis.value, nama: f.nama.value, qty: f.qty.value, orang: k === 'aku' ? AKU : f.orang.value, tel: k === 'aku' ? '' : f.tel.value,
           harga: f.harga.value, catatan: f.catatan.value.trim(),
@@ -2156,13 +2156,13 @@
     const f = $('borangBayar');
     f.reset();
     const bk = baki(it);
-    $('bayarTajuk').textContent = it.kat === 'jual' ? 'Bayaran dari ' + (it.orang || 'kastemer') : 'Bayaran aku';
-    $('bayarNota').textContent = labelItem(it) + ' · harga ' + rm(it.harga) + ', dah bayar ' + rm(dibayar(it)) + (bk > 0 ? ', baki ' + rm(bk) : '');
+    $('bayarTajuk').textContent = it.kat === 'jual' ? 'Bayaran dari ' + (it.orang || 'kastemer') : 'Bayaran dibuat';
+    $('bayarNota').textContent = labelItem(it) + ' · harga ' + rm(it.harga) + ', telah dibayar ' + rm(dibayar(it)) + (bk > 0 ? ', baki ' + rm(bk) : '');
     f.amaun.value = bk > 0 ? bk : '';
     f.tarikh.value = tarikhInput();
     const cepat = [];
     if (bk > 0) cepat.push(['Baki ' + rm(bk), bk]);
-    [100, 150, 200].forEach((n) => { if (bk <= 0 || n < bk) cepat.push(['Depo ' + rm(n), n]); });
+    [100, 150, 200].forEach((n) => { if (bk <= 0 || n < bk) cepat.push(['Deposit ' + rm(n), n]); });
     $('bayarCepat').innerHTML = cepat.map((c) => '<button type="button" data-n="' + c[1] + '">' + esc(c[0]) + '</button>').join('');
     $('bayarRalat').textContent = '';
     buka($('dlgBayar'));
@@ -2207,15 +2207,15 @@
     let html = '';
     if (!kunci) {
       const jumlah = bulat(semua.reduce((j, g) => j + g.baki, 0));
-      html += '<h2>Kastemer</h2><p class="nota">Barang yang belum selesai. Jumlah baki semua kastemer: <b>' + rm(jumlah) + '</b></p>';
-      if (!semua.length) html += '<p class="kosong">Tiada barang kastemer yang aktif.</p>';
+      html += '<h2>Pelanggan</h2><p class="nota">Barang yang belum selesai. Jumlah baki semua pelanggan: <b>' + rm(jumlah) + '</b></p>';
+      if (!semua.length) html += '<p class="kosong">Tiada barang pelanggan yang aktif.</p>';
       html += semua.map((g) => '<button type="button" class="orang-baris" data-k="' + esc(g.kunci) + '"><span class="isi"><b>' + esc(g.nama) + '</b><small>' +
         g.items.length + ' item' + (g.tel ? ' · ' + esc(g.tel) : '') + '</small></span><span class="baki' + (g.baki <= 0 ? ' sifar' : '') + '">' +
         (g.baki > 0 ? rm(g.baki) : 'Lunas') + '</span></button>').join('');
     } else {
       const g = semua.find((x) => x.kunci === kunci);
       if (!g) { paparKastemer(null); return; }
-      html += '<button type="button" class="balik" data-k="">‹ Semua kastemer</button>';
+      html += '<button type="button" class="balik" data-k="">‹ Semua pelanggan</button>';
       html += '<h2>' + esc(g.nama) + '</h2>';
       html += '<p class="nota">' + (g.tel ? '<a href="tel:' + esc(g.tel.replace(/[^\d+]/g, '')) + '">' + esc(g.tel) + '</a> · ' : '') +
         g.items.length + ' item · baki <b>' + rm(g.baki) + '</b></p>';
@@ -2227,6 +2227,7 @@
       }).join('') + '</div>';
       html += '<div class="grid-aksi" style="margin-top:14px">';
       if (g.baki > 0) html += '<button class="btn utama penuh btn-wa" type="button" data-wa="' + esc(g.kunci) + '">' + IKON_WA + 'WhatsApp minta baki</button>';
+      html += '<button class="btn penuh" type="button" data-gabung="' + esc(g.kunci) + '">Tukar nama / gabung dengan pelanggan lain</button>';
       html += '</div>';
     }
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
@@ -2239,6 +2240,7 @@
     if (!b) return;
     if (b.dataset.tutup) { tutup($('dlgKastemer')); return; }
     if (b.dataset.item) { bukaButir(b.dataset.item); return; }
+    if (b.dataset.gabung) { borangGabung(b.dataset.gabung); return; }
     if (b.dataset.wa) {
       const g = senaraiKastemer().find((x) => x.kunci === b.dataset.wa);
       if (g) waBaki(g.items);
@@ -2246,6 +2248,40 @@
     }
     if (b.dataset.k !== undefined) { paparKastemer(b.dataset.k || null); $('dlgKastemer').scrollTop = 0; }
   });
+
+  // Satukan dua nama yang sebenarnya orang sama (contoh AZLAN dan NOR AZLAN (FB)).
+  // Semua item (termasuk Arkib dan hantaran) bawah nama lama ditukar kepada nama baru.
+  function borangGabung(kunci) {
+    isiDatalistOrang();
+    const its = data.items.filter((it) => it.kat === 'jual' && kunciOrang(it.orang) === kunci);
+    if (!its.length) return;
+    const lama = its[0].orang;
+    const lain = senaraiKastemer().filter((g) => g.kunci !== kunci);
+    borang({
+      tajuk: 'Tukar nama / gabung',
+      nota: esc(lama) + ' · ' + its.length + ' item (termasuk Arkib). Pilih pelanggan sedia ada untuk digabungkan, atau taip nama baru.',
+      html: (lain.length ? senaraiPilih('ke', lain.map((g) => ({ nilai: g.nama, label: g.nama, sub: g.items.length + ' item aktif' + (g.tel ? ' · ' + g.tel : '') })), 'radio') : '') +
+        medanTeks('nama', 'Atau nama baru', '', ' maxlength="60"') +
+        medanTeks('tel', 'No. telefon <small>(kosongkan untuk kekalkan yang ada)</small>', '', ' type="tel" inputmode="tel" maxlength="30"'),
+      simpan: 'Simpan',
+      hantar(f) {
+        const pilih = nilaiPilih(f, 'ke')[0];
+        const baru = (f.nama.value.trim() || pilih || '').slice(0, 60);
+        if (!baru) return 'Pilih pelanggan atau taip nama baru.';
+        const kunciBaru = kunciOrang(baru);
+        const tel = f.tel.value.trim() || telUntuk(baru) || (its.find((it) => it.tel) || {}).tel || '';
+        ubah(() => {
+          data.items.forEach((it) => {
+            const k = kunciOrang(it.orang);
+            if (it.kat === 'jual' && (k === kunci || k === kunciBaru)) { it.orang = baru; if (tel) it.tel = tel; }
+          });
+          data.hantar.forEach((h) => { if (kunciOrang(h.orang) === kunci) h.orang = baru; });
+        }, kunciOrang(lama) === kunciBaru ? 'Disimpan.' : esc(lama) + ' digabung ke ' + baru + '.');
+        paparKastemer(kunciBaru);
+        return '';
+      },
+    });
+  }
 
   /* ---------- WhatsApp ---------- */
 
@@ -2256,7 +2292,7 @@
   function barisBaki(its) {
     return its.map((it) => {
       const b = dibayar(it);
-      return '- ' + labelItem(it) + ': harga ' + rm(it.harga) + (b ? ', dah bayar ' + rm(b) : '') + (baki(it) > 0 ? ', baki ' + rm(baki(it)) : '');
+      return '- ' + labelItem(it) + ': harga ' + rm(it.harga) + (b ? ', telah dibayar ' + rm(b) : '') + (baki(it) > 0 ? ', baki ' + rm(baki(it)) : '');
     }).join('\n');
   }
 
@@ -2265,7 +2301,7 @@
     if (!ada.length) { toast('Tiada baki.'); return; }
     const jumlah = bakiPositif(ada);
     const sampai = ada.every((it) => peringkat(it) === 'sampai');
-    let teks = 'Salam ' + ada[0].orang + '.\n\n' + (sampai ? 'Barang pre-order dah sampai. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
+    let teks = 'Salam ' + ada[0].orang + '.\n\n' + (sampai ? 'Barang pre-order telah tiba. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
       (ada.length > 1 ? '\n\nJumlah baki: ' + rm(jumlah) : '') + '\n';
     if (data.bank) teks += '\n' + data.bank.trim() + '\n';
     teks += '\nTerima kasih.';
@@ -2277,13 +2313,13 @@
     const its = itemHantar(h);
     const bk = bakiPositif(its);
     let teks = 'Salam ' + h.orang + '.\n\n';
-    if (h.cara === 'pos') teks += 'Barang dah dipos guna J&T:\n' + its.map((it) => '- ' + labelItem(it)).join('\n') + (h.track ? '\n\nTracking J&T: ' + h.track : '') + '\n';
+    if (h.cara === 'pos') teks += 'Barang telah dipos melalui J&T:\n' + its.map((it) => '- ' + labelItem(it)).join('\n') + (h.track ? '\n\nTracking J&T: ' + h.track : '') + '\n';
     else teks += 'Barang akan dihantar sendiri:\n' + its.map((it) => '- ' + labelItem(it)).join('\n') + '\n';
     if (bk > 0) {
       teks += '\nBaki bayaran: ' + rm(bk) + '\n';
       if (data.bank) teks += data.bank.trim() + '\n';
     }
-    teks += '\nSila maklumkan bila barang dah sampai. Terima kasih.';
+    teks += '\nSila maklumkan apabila barang telah diterima. Terima kasih.';
     bukaWa((its.find((it) => it.tel) || {}).tel || '', teks);
   }
 
@@ -2322,7 +2358,7 @@
     html += '<table class="jadual"><thead><tr><th>Bulan</th><th>Jual</th><th>Kos</th><th>Untung</th></tr></thead><tbody>' +
       baris.map((g) => '<tr><td><b>' + g.label + '</b><small>' + g.n + ' item' + (g.tak ? ' · ' + g.tak + ' tanpa kos' : '') + '</small></td><td>' + rm(g.jual) + '</td><td>' + rm(g.kos) +
         '</td><td class="' + (g.untung < 0 ? 'rugi' : 'untung') + '">' + rm(g.untung) + '</td></tr>').join('') + '</tbody></table>';
-    if (tak) html += '<p class="nota">' + tak + ' item belum ada kos, jadi tak dikira. Item dari Excel lama tiada harga beli; isi melalui Edit kalau perlu.</p>';
+    if (tak) html += '<p class="nota">' + tak + ' item belum ada kos, jadi tidak dikira. Item dari Excel lama tiada harga beli; isi melalui Edit kalau perlu.</p>';
     html += '<p class="nota">Jumlah kos posting BNS direkod: ' + rm(kotakKos) + ' · kos J&amp;T: ' + rm(jnt) + '</p>';
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
     $('panelIsi').innerHTML = html;
@@ -2333,7 +2369,7 @@
     if (o) bukaOrder(o.dataset.order);
   });
   $('btnUntung').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaUntung, 0); });
-  $('btnSenaraiOrder').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaSenaraiOrder, 0); });
+  $('btnSenaraiOrder').addEventListener('click', bukaSenaraiOrder);
 
   /* ---------- Tetapan ---------- */
 
@@ -2592,7 +2628,7 @@
         } else if (a === null || a === undefined) {
           const p = await tanya({
             tajuk: 'Data berbeza',
-            teks: 'Data dalam Google Drive (diubah ' + masaPendek(r) + ') tak sama dengan data dalam peranti ini (diubah ' + masaPendek(l) + '). Guna yang mana?',
+            teks: 'Data dalam Google Drive (diubah ' + masaPendek(r) + ') tidak sama dengan data dalam peranti ini (diubah ' + masaPendek(l) + '). Guna yang mana?',
             butang: [{ nilai: 'b', label: 'Peranti ini' }, { nilai: 'a', label: 'Google Drive', kelas: 'utama' }],
           });
           if (p === 'a') { gunaJauh(jauh, 'Data dari Google Drive dimuatkan.'); hasil = 'muat'; }
@@ -2640,7 +2676,7 @@
     try {
       await mintaToken();
     } catch (e) {
-      toast(e.kod === 'popup_closed' || e.kod === 'access_denied' ? 'Sambungan dibatalkan.' : 'Tak dapat sambung ke Google. Cuba lagi.');
+      toast(e.kod === 'popup_closed' || e.kod === 'access_denied' ? 'Sambungan dibatalkan.' : 'Tidak dapat sambung ke Google. Cuba lagi.');
       setStatus(selaras.aktif ? 'perlu' : 'mati');
       return false;
     }
@@ -2657,7 +2693,7 @@
   function paparTetapanSelaras() {
     const hidup = selaras.aktif;
     $('selarasNota').textContent = !hidup
-      ? 'Belum log masuk. Log masuk dengan akaun Google yang sama di phone dan PC untuk guna data yang sama. Data disimpan dalam folder tersembunyi khas apps ini dalam Google Drive kau; orang lain (dan apps lain) tak boleh baca.'
+      ? 'Belum log masuk. Log masuk dengan akaun Google yang sama di telefon dan PC untuk menggunakan data yang sama. Data disimpan dalam folder tersembunyi khas apps ini dalam Google Drive anda; pihak lain (termasuk apps lain) tidak boleh membacanya.'
       : 'Log masuk' + (selaras.emel ? ' sebagai ' + selaras.emel : '') + '. Data diselaras sendiri selepas setiap perubahan.';
     $('btnSambung').hidden = hidup;
     $('btnSelarasKini').hidden = !hidup;
@@ -2690,7 +2726,7 @@
   $('btnSelaras').addEventListener('click', selarasKetuk);
 
   $('btnPutus').addEventListener('click', async () => {
-    const ok = await sahkan({ tajuk: 'Putuskan Google Drive?', teks: 'Data dalam peranti ini kekal. Data dalam Drive pun kekal, cuma tak diselaras lagi dari peranti ini.', ya: 'Putuskan' });
+    const ok = await sahkan({ tajuk: 'Putuskan Google Drive?', teks: 'Data dalam peranti ini kekal. Data dalam Drive pun kekal, cuma tidak diselaras lagi dari peranti ini.', ya: 'Putuskan' });
     if (!ok) return;
     // Hanya lupakan token dalam peranti ini. Tak "revoke", sebab Client ID dikongsi dengan apps lain.
     selaras = { aktif: false, fid: null, asas: null, emel: null, masa: null, tok: null, exp: 0 };

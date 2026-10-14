@@ -1234,3 +1234,8 @@ dialog::backdrop { background: var(--tirai); }
 .senarai { overflow-x: clip; }
 
 .pilih-semua { display: block; margin: 0 0 8px auto; font-size: 0.875rem; }
+
+@media (max-width: 400px) {
+  .atas .ikon-btn { width: 38px; height: 40px; }
+  .jenama h1 { font-size: 1.25rem; }
+}

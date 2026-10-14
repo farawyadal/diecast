@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Diecast</title>
-<meta name="description" content="Jejak pre-order diecast: barang personal, barang OTW dan barang belum ship, bayaran kastemer dan baki. Developed by FaridAssamani.">
+<meta name="description" content="Jejak tempahan diecast dari pembelian hingga penghantaran, bayaran pelanggan dan baki. Developed by FaridAssamani.">
 <meta name="theme-color" content="#F3F5F9">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Diecast">
 <meta property="og:title" content="Diecast · Jejak Pre-Order">
-<meta property="og:description" content="Jejak barang pre-order, bayaran kastemer dan baki. Developed by FaridAssamani.">
+<meta property="og:description" content="Jejak tempahan pre-order, bayaran pelanggan dan baki. Developed by FaridAssamani.">
 <meta property="og:url" content="https://farawyadal.github.io/diecast/">
 <meta property="og:image" content="https://farawyadal.github.io/diecast/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -53,10 +53,13 @@ try {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.5 4.5 0 0 0 7 18z"/></svg>
         <span id="selarasTeks"></span>
       </button>
+      <button class="ikon-btn" id="btnSenaraiOrder" type="button" aria-label="Senarai order CM" title="Senarai order CM">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 11h7M9 15h7M9 19h4"/></svg>
+      </button>
       <button class="ikon-btn" id="btnArkib" type="button" aria-label="Arkib" title="Arkib">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>
       </button>
-      <button class="ikon-btn" id="btnKastemer" type="button" aria-label="Senarai kastemer" title="Kastemer">
+      <button class="ikon-btn" id="btnKastemer" type="button" aria-label="Senarai pelanggan" title="Pelanggan">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.4 3.4 0 0 1 0 6.4"/><path d="M18.2 14.8c1.8.7 3 2.4 3.3 5.2"/></svg>
       </button>
       <button class="ikon-btn" id="btnPasang" type="button" aria-label="Pasang apps" title="Pasang apps" hidden>
@@ -68,15 +71,15 @@ try {
     </header>
 
     <nav class="tab" id="tab" role="tablist" aria-label="Peringkat">
-      <button type="button" role="tab" data-kat="beli">Belum Ship <span class="kira" data-kira="beli"></span></button>
-      <button type="button" role="tab" data-kat="otw">OTW <span class="kira" data-kira="otw"></span></button>
-      <button type="button" role="tab" data-kat="sampai">Sampai <span class="kira" data-kira="sampai"></span></button>
-      <button type="button" role="tab" data-kat="hantar">Hantar <span class="kira" data-kira="hantar"></span></button>
-      <button type="button" role="tab" data-kat="luar">Personal <span class="kira" data-kira="luar"></span></button>
+      <button type="button" role="tab" data-kat="beli">Tempahan <span class="kira" data-kira="beli"></span></button>
+      <button type="button" role="tab" data-kat="otw">Transit <span class="kira" data-kira="otw"></span></button>
+      <button type="button" role="tab" data-kat="sampai">Tiba <span class="kira" data-kira="sampai"></span></button>
+      <button type="button" role="tab" data-kat="hantar">Penghantaran <span class="kira" data-kira="hantar"></span></button>
+      <button type="button" role="tab" data-kat="luar">Peribadi <span class="kira" data-kira="luar"></span></button>
     </nav>
     <div class="tajuk-arkib" id="tajukArkib" hidden>
       <button type="button" class="balik" id="btnKeluarArkib">‹ Kembali</button>
-      <b>Arkib</b><span>Barang yang dah selesai</span>
+      <b>Arkib</b><span>Barang yang telah selesai</span>
     </div>
 
     <section class="ringkas" id="ringkas" aria-live="polite"></section>
@@ -91,7 +94,7 @@ try {
   </div>
 
   <section class="banner" id="bannerLogin" hidden>
-    <div><b>Guna data sama di phone dan PC</b><span>Log masuk dengan Google. Data disimpan peribadi dalam Google Drive kau.</span></div>
+    <div><b>Data yang sama di telefon dan PC</b><span>Log masuk dengan Google. Data disimpan secara peribadi dalam Google Drive anda.</span></div>
     <button class="btn utama kecil" id="btnSambungBanner" type="button">Log masuk</button>
     <button class="buang" id="btnTutupBanner" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </section>
@@ -163,7 +166,7 @@ try {
   <div class="helai-isi" id="panelIsi"></div>
 </dialog>
 
-<!-- Senarai kastemer -->
+<!-- Senarai pelanggan -->
 <dialog id="dlgKastemer" class="helai">
   <div class="helai-isi" id="kastemerIsi"></div>
 </dialog>
@@ -175,7 +178,6 @@ try {
 
     <h3>Bisnes</h3>
     <div class="baris-btn">
-      <button class="btn" id="btnSenaraiOrder" type="button">Senarai order</button>
       <button class="btn" id="btnUntung" type="button">Untung rugi</button>
     </div>
     <label class="medan" style="margin-top:12px">Caj tukaran kad (%) <small>(ditambah atas kadar pasaran · 0 kalau tak pasti)</small>
@@ -195,7 +197,7 @@ try {
       <textarea id="tetBank" rows="3" maxlength="300" placeholder="Contoh: Sila buat bayaran kepada Maybank 5110xxxxxxx Mohd Farid Assamani."></textarea>
     </label>
 
-    <h3>Akaun Google · phone dan PC</h3>
+    <h3>Akaun Google · telefon dan PC</h3>
     <p class="nota" id="selarasNota"></p>
     <p class="nota" id="selarasMasa"></p>
     <div class="baris-btn">

@@ -1,7 +1,7 @@
 {
   "name": "Diecast",
   "short_name": "Diecast",
-  "description": "Jejak barang pre-order, bayaran kastemer dan baki. Developed by FaridAssamani.",
+  "description": "Jejak tempahan pre-order, bayaran pelanggan dan baki. Developed by FaridAssamani.",
   "lang": "ms",
   "start_url": "./",
   "scope": "./",
