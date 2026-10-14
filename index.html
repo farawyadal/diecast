@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diecast</title>
+<meta name="description" content="Jejak pre-order diecast: barang personal, barang OTW dan barang belum ship, bayaran kastemer dan baki. Developed by FaridAssamani.">
+<meta name="theme-color" content="#F3F5F9">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Diecast">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+<!-- Pratonton bila pautan dikongsi di WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Diecast">
+<meta property="og:title" content="Diecast · Jejak Pre-Order">
+<meta property="og:description" content="Jejak barang pre-order, bayaran kastemer dan baki. Developed by FaridAssamani.">
+<meta property="og:url" content="https://farawyadal.github.io/diecast/">
+<meta property="og:image" content="https://farawyadal.github.io/diecast/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Diecast, apps jejak pre-order">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>
+/* Pasang tema yang dipilih sebelum halaman dilukis, supaya tak berkelip. */
+try {
+  var s = JSON.parse(localStorage.getItem('diecast-tetapan') || '{}');
+  if (s.tema === 'gelap') document.documentElement.setAttribute('data-theme', 'dark');
+  else if (s.tema === 'terang') document.documentElement.setAttribute('data-theme', 'light');
+} catch (e) {}
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bingkai">
+
+  <!-- Bahagian atas: kekal nampak walaupun senarai ditatal -->
+  <div class="lekat">
+    <header class="atas">
+      <div class="jenama">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M4 20.5v-3.2c0-.9.6-1.7 1.5-1.9l4.3-1 3.4-3.3c.6-.6 1.4-.9 2.2-.9h5.1c.9 0 1.7.4 2.3 1.1l2.4 3 3 .7c.9.2 1.6 1 1.6 2v3.5c0 .6-.5 1.1-1.1 1.1h-1.4"/><path d="M10.3 21.6h10.9"/><path d="M5.6 21.6H4.9"/><circle cx="8" cy="21.6" r="2.4"/><circle cx="23.6" cy="21.6" r="2.4"/><path d="M14 11v4.4h9"/></svg>
+        </span>
+        <h1>Diecast</h1>
+      </div>
+      <button class="selaras" id="btnSelaras" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.5 4.5 0 0 0 7 18z"/></svg>
+        <span id="selarasTeks"></span>
+      </button>
+      <button class="ikon-btn" id="btnKastemer" type="button" aria-label="Senarai kastemer" title="Kastemer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.4 3.4 0 0 1 0 6.4"/><path d="M18.2 14.8c1.8.7 3 2.4 3.3 5.2"/></svg>
+      </button>
+      <button class="ikon-btn" id="btnPasang" type="button" aria-label="Pasang apps" title="Pasang apps" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></svg>
+      </button>
+      <button class="ikon-btn" id="btnMenu" type="button" aria-label="Tetapan" title="Tetapan">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+      </button>
+    </header>
+
+    <nav class="tab" id="tab" role="tablist" aria-label="Kategori">
+      <button type="button" role="tab" data-kat="personal">Personal <span class="kira" data-kira="personal"></span></button>
+      <button type="button" role="tab" data-kat="otw">OTW <span class="kira" data-kira="otw"></span></button>
+      <button type="button" role="tab" data-kat="tunggu">Belum Ship <span class="kira" data-kira="tunggu"></span></button>
+      <button type="button" role="tab" data-kat="arkib">Arkib <span class="kira" data-kira="arkib"></span></button>
+    </nav>
+
+    <section class="ringkas" id="ringkas" aria-live="polite"></section>
+
+    <div class="tapis" id="tapisBar">
+      <label class="cari">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+        <input id="cari" type="search" placeholder="Cari item atau nama" autocomplete="off" enterkeyhint="search">
+      </label>
+      <div class="cip" id="cip" role="group" aria-label="Tapis status">
+        <button type="button" data-status="semua" class="aktif">Semua</button>
+        <button type="button" data-status="belum"><i class="titik s-belum"></i>Belum bayar</button>
+        <button type="button" data-status="depo"><i class="titik s-depo"></i>Depo</button>
+        <button type="button" data-status="lunas"><i class="titik s-lunas"></i>Dah bayar</button>
+      </div>
+    </div>
+  </div>
+
+  <main id="senarai" class="senarai"></main>
+
+  <!-- Kali pertama: tiada data -->
+  <section id="kosongMula" class="kosong-mula" hidden>
+    <h2>Selamat datang</h2>
+    <p>Belum ada item. Masukkan senarai dari fail, ambil data dari Google Drive, atau mula tambah item sendiri.</p>
+    <button class="btn utama" id="btnImportMula" type="button">Import senarai</button>
+    <button class="btn" id="btnSambungMula" type="button">Ambil data dari Google Drive</button>
+    <button class="btn" id="btnTambahMula" type="button">Tambah item</button>
+  </section>
+
+  <footer class="kaki">Developed by FaridAssamani</footer>
+</div>
+
+<button class="fab" id="btnTambah" type="button" aria-label="Tambah item">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  <span>Tambah item</span>
+</button>
+
+<!-- Butiran item -->
+<dialog id="dlgButir" class="helai">
+  <div class="helai-isi" id="butirIsi"></div>
+</dialog>
+
+<!-- Tambah / edit item -->
+<dialog id="dlgBorang" class="helai">
+  <form id="borang" class="helai-isi" method="dialog" autocomplete="off">
+    <h2 id="borangTajuk">Tambah item</h2>
+
+    <fieldset class="pilih-kat">
+      <legend>Kategori</legend>
+      <label><input type="radio" name="kat" value="personal"><span>Personal</span></label>
+      <label><input type="radio" name="kat" value="otw"><span>OTW</span></label>
+      <label><input type="radio" name="kat" value="tunggu"><span>Belum Ship</span></label>
+    </fieldset>
+
+    <div class="dua">
+      <label class="medan kecil">Jenis
+        <input name="jenis" list="senaraiJenis" placeholder="HW, RLC…" maxlength="20">
+      </label>
+      <label class="medan">Item
+        <input name="nama" required placeholder="Contoh: Skyline R32" maxlength="80">
+      </label>
+    </div>
+
+    <div class="dua">
+      <label class="medan kecil">Qty
+        <input name="qty" type="number" inputmode="numeric" min="1" step="1" value="1">
+      </label>
+      <label class="medan"><span id="labelOrang">Nama kastemer</span>
+        <input name="orang" list="senaraiOrang" required maxlength="60">
+      </label>
+    </div>
+
+    <label class="medan">No. telefon <small>(pilihan)</small>
+      <input name="tel" type="tel" inputmode="tel" placeholder="+60 12-345 6789" maxlength="30">
+    </label>
+
+    <div class="dua">
+      <label class="medan">Harga (RM)
+        <input name="harga" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
+      </label>
+      <label class="medan" id="medanModal">Modal (RM) <small>(pilihan)</small>
+        <input name="modal" type="number" inputmode="decimal" min="0" step="0.01">
+      </label>
+    </div>
+
+    <label class="medan" id="medanBayarAwal">Dah bayar (RM)
+      <input name="bayarAwal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
+    </label>
+
+    <label class="medan">Catatan <small>(pilihan)</small>
+      <textarea name="catatan" rows="2" maxlength="300"></textarea>
+    </label>
+
+    <p class="ralat" id="borangRalat" role="alert"></p>
+
+    <div class="aksi-bawah">
+      <button class="btn" type="button" id="borangBatal">Batal</button>
+      <button class="btn utama" type="submit" id="borangSimpan">Simpan</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Tambah bayaran -->
+<dialog id="dlgBayar" class="helai kecil">
+  <form id="borangBayar" class="helai-isi" method="dialog" autocomplete="off">
+    <h2 id="bayarTajuk">Tambah bayaran</h2>
+    <p class="nota" id="bayarNota"></p>
+    <label class="medan">Jumlah (RM)
+      <input name="amaun" type="number" inputmode="decimal" step="0.01" required>
+    </label>
+    <div class="cepat" id="bayarCepat"></div>
+    <label class="medan">Tarikh
+      <input name="tarikh" type="date" required>
+    </label>
+    <label class="medan">Nota <small>(pilihan)</small>
+      <input name="nota" maxlength="80" placeholder="Contoh: transfer Maybank">
+    </label>
+    <p class="ralat" id="bayarRalat" role="alert"></p>
+    <div class="aksi-bawah">
+      <button class="btn" type="button" id="bayarBatal">Batal</button>
+      <button class="btn utama" type="submit">Simpan bayaran</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Senarai kastemer -->
+<dialog id="dlgKastemer" class="helai">
+  <div class="helai-isi" id="kastemerIsi"></div>
+</dialog>
+
+<!-- Tetapan -->
+<dialog id="dlgMenu" class="helai">
+  <div class="helai-isi">
+    <h2>Tetapan</h2>
+
+    <h3>Paparan</h3>
+    <div class="segmen" id="segTema" role="group" aria-label="Paparan">
+      <button type="button" data-tema="sistem">Ikut sistem</button>
+      <button type="button" data-tema="terang">Terang</button>
+      <button type="button" data-tema="gelap">Gelap</button>
+    </div>
+
+    <h3>Mesej WhatsApp minta baki</h3>
+    <p class="nota">Maklumat bayaran ini dimasukkan di hujung mesej. Ia disimpan dalam peranti ini dan ikut selaras Drive, bukan di GitHub.</p>
+    <label class="medan">Maklumat bayaran
+      <textarea id="tetBank" rows="3" maxlength="300" placeholder="Contoh: Sila buat bayaran kepada Maybank 5110xxxxxxx Mohd Farid Assamani."></textarea>
+    </label>
+
+    <h3>Selaras Google Drive</h3>
+    <p class="nota" id="selarasNota"></p>
+    <p class="nota" id="selarasMasa"></p>
+    <div class="baris-btn">
+      <button class="btn utama" id="btnSambung" type="button">Sambung Google Drive</button>
+      <button class="btn" id="btnSelarasKini" type="button" hidden>Selaras sekarang</button>
+      <button class="btn" id="btnPutus" type="button" hidden>Putuskan</button>
+    </div>
+
+    <h3>Data</h3>
+    <div class="baris-btn">
+      <button class="btn" id="btnEksport" type="button">Simpan salinan</button>
+      <button class="btn" id="btnImport" type="button">Import fail</button>
+    </div>
+    <input type="file" id="failImport" accept=".json,application/json" hidden>
+
+    <div class="aksi-bawah">
+      <button class="btn utama" type="button" id="menuTutup">Tutup</button>
+    </div>
+    <p class="kaki dalam">Diecast · Developed by FaridAssamani</p>
+  </div>
+</dialog>
+
+<!-- Pengesahan -->
+<dialog id="dlgSah" class="sah">
+  <form method="dialog">
+    <h2 id="sahTajuk"></h2>
+    <p id="sahTeks"></p>
+    <div class="aksi-bawah" id="sahBtn"></div>
+  </form>
+</dialog>
+
+<datalist id="senaraiJenis">
+  <option value="HW"><option value="RLC"><option value="ELITE"><option value="SDCC">
+  <option value="MB"><option value="POP RACE"><option value="MINI GT"><option value="OTHERS">
+</datalist>
+<datalist id="senaraiOrang"></datalist>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+  <span id="toastTeks"></span>
+  <button type="button" id="toastBtn" hidden></button>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
