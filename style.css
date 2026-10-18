@@ -1416,3 +1416,19 @@ details.kump-bulan[open] > summary .anak { transform: rotate(90deg); }
 details.kump-bulan:not([open]) { margin-bottom: 4px; }
 .kump-tajuk small .untung { color: var(--lunas-teks, inherit); font-weight: 700; }
 .kump-tajuk small .rugi { color: var(--belum-teks); font-weight: 700; }
+
+/* Sale akan datang */
+button.banner-sale { width: 100%; border: 0; text-align: left; color: var(--dakwat); font: inherit; background: var(--depo-lembut); cursor: pointer; }
+button.banner-sale[hidden] { display: none; }
+.banner-sale > svg { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.banner-sale .anak { font-size: 1.25rem; color: var(--dakwat-2); padding-right: 6px; }
+.sale-kad { border: 1px solid var(--garis); border-radius: 14px; padding: 12px; margin-top: 10px; background: var(--permukaan); }
+.sale-kad.lepas { opacity: 0.75; }
+.sale-atas { display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; }
+.sale-atas b { font-size: 0.9375rem; }
+.sale-atas .pil { flex: none; }
+.sale-kad > small { display: block; color: var(--dakwat-2); margin-top: 2px; font-size: 0.8125rem; }
+.sale-kad .baris-btn { margin-top: 10px; flex-wrap: wrap; }
+.sale-kad a.btn { text-decoration: none; }
+.sale-lepas { margin-top: 16px; }
+.sale-lepas summary { cursor: pointer; font-weight: 700; color: var(--dakwat-2); font-size: 0.875rem; }

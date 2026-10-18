@@ -56,7 +56,7 @@
     : ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const AKU = 'AKU';
 
-  let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], bank: '', kadar: null };
+  let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], sale: [], bank: '', kadar: null };
   let tetapan = { tema: 'sistem', tab: 'beli', status: 'semua', akaun: 'fa.rawyadal', bahasa: BAHASA };
   let cari = '';
 
@@ -97,6 +97,46 @@
     return new Date(+m[1], +m[2] - 1, +m[3], 12).getTime();
   }
   const tarikhAtauNull = (v) => (v ? dariInput(v) : null);
+
+  // Zon waktu untuk sale. Masa sale CM biasanya diumumkan dalam waktu US.
+  const ZON = {
+    MY: { tz: 'Asia/Kuala_Lumpur', label: 'Waktu Malaysia', pendek: 'MY' },
+    PT: { tz: 'America/Los_Angeles', label: 'Waktu Pasifik US (PT)', pendek: 'PT' },
+    ET: { tz: 'America/New_York', label: 'Waktu Timur US (ET)', pendek: 'ET' },
+  };
+  const NAMA_HARI = BAHASA === 'en' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+  const dua = (n) => String(n).padStart(2, '0');
+  function bahagianZon(ms, tz) {
+    const p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(ms)).forEach((x) => { p[x.type] = x.value; });
+    return { y: +p.year, mo: +p.month, d: +p.day, h: +p.hour % 24, mi: +p.minute };
+  }
+  // Masa dinding dalam zon tz -> UTC ms (ambil kira waktu musim panas US).
+  function keUtc(y, mo, d, h, mi, tz) {
+    const sasaran = Date.UTC(y, mo - 1, d, h, mi);
+    let t = sasaran;
+    for (let i = 0; i < 3; i++) {
+      const b = bahagianZon(t, tz);
+      const beza = sasaran - Date.UTC(b.y, b.mo - 1, b.d, b.h, b.mi);
+      if (!beza) break;
+      t += beza;
+    }
+    return t;
+  }
+  function masaZon(ms, zon, pendek) {
+    const b = bahagianZon(ms, ZON[zon].tz);
+    const hari = NAMA_HARI[new Date(Date.UTC(b.y, b.mo - 1, b.d)).getUTCDay()];
+    return pendek ? hari + ' ' + dua(b.h) + ':' + dua(b.mi) : hari + ' ' + b.d + ' ' + BULAN[b.mo - 1] + ' ' + b.y + ', ' + dua(b.h) + ':' + dua(b.mi);
+  }
+  function bakiMasa(ms) {
+    const m = Math.ceil((ms - Date.now()) / 60000);
+    if (m <= 0) return '';
+    const h = Math.floor(m / 1440), j = Math.floor((m % 1440) / 60), mi = m % 60;
+    if (h) return h + ' hari' + (j ? ' ' + j + ' jam' : '');
+    if (j) return j + ' jam' + (mi ? ' ' + mi + ' minit' : '');
+    return mi + ' minit';
+  }
 
   const dibayar = (it) => bulat((it.bayaran || []).reduce((j, b) => j + (Number(b.amaun) || 0), 0));
   const baki = (it) => bulat((Number(it.harga) || 0) - dibayar(it));
@@ -251,6 +291,22 @@
     return j;
   }
 
+  // Sale akan datang: t = masa mula (UTC ms); zon = zon waktu yang dimasukkan pengguna.
+  function bersihSale(x) {
+    if (!x || !String(x.nama || '').trim() || !Number(x.t)) return null;
+    return {
+      id: String(x.id || idBaru()),
+      jenis: String(x.jenis || '').slice(0, 20),
+      nama: String(x.nama).trim().slice(0, 120),
+      t: Number(x.t),
+      zon: ZON[x.zon] ? x.zon : 'MY',
+      pautan: /^https?:\/\//.test(x.pautan || '') ? String(x.pautan).slice(0, 500) : '',
+      catatan: String(x.catatan || '').slice(0, 500),
+      eventId: String(x.eventId || '').slice(0, 200),
+      dibuat: Number(x.dibuat) || Date.now(),
+    };
+  }
+
   function bersihData(j) {
     naikTaraf(j);
     const d = {
@@ -260,6 +316,7 @@
       orders: (Array.isArray(j.orders) ? j.orders : []).map(bersihOrder).filter(Boolean),
       kotak: (Array.isArray(j.kotak) ? j.kotak : []).map(bersihKotak).filter(Boolean),
       hantar: (Array.isArray(j.hantar) ? j.hantar : []).map(bersihHantar).filter(Boolean),
+      sale: (Array.isArray(j.sale) ? j.sale : []).map(bersihSale).filter(Boolean),
       bank: String(j.bank || '').slice(0, 300),
       kadar: nomborAtauNull(j.kadar) === null ? null : Math.round(Number(j.kadar) * 10000) / 10000,
       markup: nomborAtauNull(j.markup) || 0,      // caj tukaran kad (%) atas kadar pasaran
@@ -269,7 +326,7 @@
 
   const eksportData = () => ({
     app: 'diecast', v: 2, diubah: data.diubah, items: data.items, orders: data.orders, kotak: data.kotak,
-    hantar: data.hantar, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
+    hantar: data.hantar, sale: data.sale, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
   });
 
   function muat() {
@@ -744,6 +801,7 @@
   function papar() {
     paparTab();
     $('bannerLogin').hidden = selaras.aktif || !!tetapan.tutupBanner || !data.items.length;
+    paparBannerSale();
     const tab = tetapan.tab;
     const ada = data.items.length > 0 || data.orders.length > 0;
     $('kosongMula').hidden = ada;
@@ -1325,12 +1383,12 @@
   }
 
   // Tempahan kastemer: masuk dulu sebelum beli dari CM.
-  function borangTempahan() {
+  function borangTempahan(awal) {
     isiDatalistOrang();
     borang({
       tajuk: 'Tempahan baru',
       nota: 'Barang yang ditempah pelanggan. Selepas membeli di CM, rekod Order CM dan tag item ini.',
-      html: '<div id="barisOrder" data-tanpa-beli>' + htmlBarisOrder(null, true) + '</div>' +
+      html: '<div id="barisOrder" data-tanpa-beli>' + htmlBarisOrder(awal || null, true) + '</div>' +
         '<button type="button" class="btn penuh-lebar" data-baris="tambah">+ Tambah item</button>',
       simpan: 'Simpan tempahan',
       hantar(f) {
@@ -2964,6 +3022,193 @@
   $('btnUntung').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaUntung, 0); });
   $('btnSenaraiOrder').addEventListener('click', bukaSenaraiOrder);
 
+  /* ---------- Sale akan datang ---------- */
+
+  /*
+    Senarai tarikh sale (contoh: drop baru di CM). Peringatan sebenar dibuat dalam
+    Google Calendar (30 dan 15 minit sebelum), jadi telefon berbunyi walaupun apps ditutup.
+  */
+  const KAL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+  const PERINGATAN = [30, 15];
+  const cariSale = (id) => data.sale.find((s) => s.id === id);
+  const labelSale = (s) => (s.jenis ? s.jenis + ' ' : '') + s.nama;
+  const saleAkanDatang = () => data.sale.filter((s) => s.t > Date.now() - 3600000).sort((a, b) => a.t - b.t);
+
+  function paparBannerSale() {
+    const s = saleAkanDatang()[0];
+    const el = $('bannerSale');
+    const tunjuk = !!s && s.t - Date.now() < 86400000;
+    el.hidden = !tunjuk;
+    if (!tunjuk) return;
+    const baki = bakiMasa(s.t);
+    el.querySelector('b').textContent = baki ? 'Sale dalam ' + baki : 'Sale sedang berlangsung';
+    el.querySelector('span').textContent = labelSale(s) + ' · ' + masaZon(s.t, 'MY', true);
+  }
+
+  function bukaSale() {
+    panelLukis = paparSale;
+    paparSale();
+    buka($('dlgPanel'));
+    muatGis().catch(() => {});
+  }
+
+  function htmlSale(s, lepas) {
+    const baki = bakiMasa(s.t);
+    return '<div class="sale-kad' + (lepas ? ' lepas' : '') + '">' +
+      '<div class="sale-atas"><b>' + (s.jenis ? '<span class="jenis">' + esc(s.jenis) + '</span>' : '') + esc(s.nama) + '</b>' +
+      (lepas ? '' : '<span class="pil ' + (s.t - Date.now() < 86400000 ? 'st-belum' : 'st-aku') + '">' + (baki ? esc(baki) : 'Sedang berlangsung') + '</span>') + '</div>' +
+      '<small>' + esc(masaZon(s.t, 'MY')) + (s.zon !== 'MY' ? ' · ' + esc(masaZon(s.t, s.zon, true)) + ' ' + ZON[s.zon].pendek : '') + '</small>' +
+      (s.catatan ? '<div class="kad-catatan">' + esc(s.catatan) + '</div>' : '') +
+      '<div class="baris-btn">' +
+      (lepas ? '' : '<button type="button" class="btn kecil' + (s.eventId ? '' : ' utama') + '" data-sale-kal="' + esc(s.id) + '">' + (s.eventId ? '✓ Dalam kalendar' : 'Tambah ke kalendar') + '</button>') +
+      '<button type="button" class="btn kecil" data-sale-tempah="' + esc(s.id) + '">Buat tempahan</button>' +
+      (s.pautan ? '<a class="btn kecil" href="' + esc(s.pautan) + '" target="_blank" rel="noopener">Buka ↗</a>' : '') +
+      '<button type="button" class="btn kecil" data-sale-edit="' + esc(s.id) + '">Edit</button>' +
+      '</div></div>';
+  }
+
+  function paparSale() {
+    const datang = saleAkanDatang();
+    const lepas = data.sale.filter((s) => s.t <= Date.now() - 3600000).sort((a, b) => b.t - a.t).slice(0, 10);
+    let html = '<h2>Sale akan datang</h2><p class="nota">Masa dalam waktu Malaysia. Tambah ke Google Calendar untuk peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.</p>' +
+      '<button type="button" class="btn utama penuh-lebar" data-sale-baru="1">+ Sale baru</button>';
+    html += datang.length ? datang.map((s) => htmlSale(s)).join('') : '<p class="kosong">Tiada sale akan datang.</p>';
+    if (lepas.length) html += '<details class="sale-lepas"><summary>Sale lepas (' + lepas.length + ')</summary>' + lepas.map((s) => htmlSale(s, true)).join('') + '</details>';
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
+    $('panelIsi').innerHTML = html;
+  }
+
+  function borangSale(s) {
+    const baru = !s;
+    const zon = s ? s.zon : (tetapan.zonSale || 'PT');
+    const b = s ? bahagianZon(s.t, ZON[zon].tz) : null;
+    borang({
+      tajuk: baru ? 'Sale baru' : 'Edit sale',
+      html: '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(s ? s.jenis : '') + '"></label>' +
+        '<label class="medan">Item / sale<input name="nama" maxlength="120" data-fokus placeholder="Contoh: RLC Nissan Skyline" value="' + esc(s ? s.nama : '') + '"></label></div>' +
+        '<div class="dua"><label class="medan">Tarikh<input name="tarikh" type="date" value="' + (b ? b.y + '-' + dua(b.mo) + '-' + dua(b.d) : tarikhInput()) + '"></label>' +
+        '<label class="medan">Masa<input name="masa" type="time" value="' + (b ? dua(b.h) + ':' + dua(b.mi) : '') + '"></label></div>' +
+        '<label class="medan">Zon waktu<select name="zon">' + Object.keys(ZON).map((k) => '<option value="' + k + '"' + (k === zon ? ' selected' : '') + '>' + ZON[k].label + '</option>').join('') + '</select></label>' +
+        '<p class="nota" id="saleMY"></p>' +
+        medanTeks('pautan', 'Pautan <small>(pilihan)</small>', s ? s.pautan : '', ' type="url" inputmode="url" placeholder="https://…"') +
+        medanTeks('catatan', 'Catatan <small>(pilihan)</small>', s ? s.catatan : '', ' maxlength="500"') +
+        '<label class="tanda"><input type="checkbox" name="kal" checked> ' + (s && s.eventId ? 'Kemas kini dalam Google Calendar' : 'Tambah ke Google Calendar (peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum)') + '</label>' +
+        (baru ? '' : '<div class="baris-btn"><button type="button" class="btn bahaya kecil" data-padam-sale="1">Padam sale</button></div>'),
+      lepas: (f) => {
+        const kira = () => {
+          const t = masaBorang(f);
+          $('saleMY').textContent = t && f.zon.value !== 'MY' ? 'Waktu Malaysia: ' + masaZon(t, 'MY') : '';
+        };
+        ['tarikh', 'masa', 'zon'].forEach((n) => { f[n].addEventListener('input', kira); f[n].addEventListener('change', kira); });
+        kira();
+        const pd = f.querySelector('[data-padam-sale]');
+        if (pd) pd.addEventListener('click', () => padamSale(s));
+      },
+      hantar(f) {
+        const nama = f.nama.value.trim();
+        if (!nama) return 'Isi nama item atau sale.';
+        const t = masaBorang(f);
+        if (!t) return 'Isi tarikh dan masa sale.';
+        const pautan = f.pautan.value.trim();
+        if (pautan && !/^https?:\/\//.test(pautan)) return 'Pautan mesti bermula dengan https://';
+        tetapan.zonSale = f.zon.value;
+        simpanTetapan();
+        const x = bersihSale(Object.assign({}, s || {}, { jenis: f.jenis.value.trim(), nama, t, zon: f.zon.value, pautan, catatan: f.catatan.value.trim() }));
+        ubah(() => {
+          const i = data.sale.findIndex((y) => y.id === x.id);
+          if (i >= 0) data.sale[i] = x; else data.sale.push(x);
+        }, baru ? 'Sale disimpan.' : 'Sale dikemas kini.');
+        if (f.kal.checked && x.t > Date.now()) kalendarSale(x.id);
+        return '';
+      },
+    });
+  }
+  function masaBorang(f) {
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f.tarikh.value);
+    const m = /^(\d{2}):(\d{2})/.exec(f.masa.value);
+    if (!d || !m) return 0;
+    return keUtc(+d[1], +d[2], +d[3], +m[1], +m[2], ZON[f.zon.value].tz);
+  }
+
+  async function padamSale(s) {
+    const ok = await sahkan({ tajuk: 'Padam sale?', teks: labelSale(s) + (s.eventId ? '\nAcara dalam Google Calendar juga akan dipadam.' : ''), ya: 'Padam' });
+    if (!ok) return;
+    tutup($('dlgForm'));
+    if (s.eventId) {
+      try { await pastiKalendar(); await gfetch(KAL + '/' + encodeURIComponent(s.eventId), { method: 'DELETE' }); }
+      catch (e) { if (![404, 410].includes(e.kod)) toast('Sale dipadam, tetapi acara dalam Google Calendar perlu dipadam sendiri.'); }
+    }
+    ubah(() => { data.sale = data.sale.filter((y) => y.id !== s.id); }, 'Sale dipadam.');
+  }
+
+  async function pastiKalendar() {
+    if (tokenSah(120000) && selaras.kal) return;
+    await mintaToken(SKOP + ' ' + SKOP_KAL);
+    simpanSelaras();
+    if (!selaras.kal) throw ralatSelaras('kal_tolak');
+  }
+  const isoKal = (ms) => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  function pautanKalendar(s) {
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('Sale: ' + labelSale(s)) +
+      '&dates=' + isoKal(s.t) + '/' + isoKal(s.t + 1800000) + '&details=' + encodeURIComponent([s.pautan, s.catatan].filter(Boolean).join('\n'));
+  }
+
+  // Tambah atau kemas kini acara Google Calendar untuk sale, dengan peringatan 30 dan 15 minit.
+  async function kalendarSale(id) {
+    let s = cariSale(id);
+    if (!s) return;
+    const badan = JSON.stringify({
+      summary: 'Sale: ' + labelSale(s),
+      description: [s.pautan, s.catatan, 'Dari apps Diecast'].filter(Boolean).join('\n'),
+      start: { dateTime: new Date(s.t).toISOString() },
+      end: { dateTime: new Date(s.t + 1800000).toISOString() },
+      reminders: { useDefault: false, overrides: PERINGATAN.map((m) => ({ method: 'popup', minutes: m })) },
+    });
+    const opt = (method) => ({ method, headers: { 'Content-Type': 'application/json' }, body: badan });
+    try {
+      await pastiKalendar();
+      let j = null;
+      if (s.eventId) {
+        try { j = await (await gfetch(KAL + '/' + encodeURIComponent(s.eventId), opt('PATCH'))).json(); }
+        catch (e) { if (![404, 410].includes(e.kod)) throw e; }
+      }
+      if (!j) j = await (await gfetch(KAL, opt('POST'))).json();
+      s = cariSale(id);
+      if (!s) return;
+      s.eventId = j.id || '';
+      simpan();
+      segarSemua();
+      toast('Ditambah ke Google Calendar. Peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.');
+    } catch (e) {
+      const sebab = e.kod === 'popup_closed' || e.kod === 'access_denied' || e.kod === 'kal_tolak' ? 'Kebenaran Google Calendar tidak diberi.'
+        : e.kod === 403 ? 'Google Calendar API belum diaktifkan dalam projek Google Cloud anda.'
+          : 'Tidak dapat sambung ke Google Calendar.';
+      const p = await tanya({
+        tajuk: 'Tidak dapat tambah ke kalendar',
+        teks: sebab + '\nBuka Google Calendar dan simpan sendiri? Peringatan akan ikut tetapan lalai kalendar anda.',
+        butang: [{ nilai: 'batal', label: 'Tutup' }, { nilai: 'buka', label: 'Buka Google Calendar', kelas: 'utama' }],
+      });
+      if (p === 'buka') window.open(pautanKalendar(cariSale(id) || s), '_blank', 'noopener');
+    }
+  }
+
+  $('panelIsi').addEventListener('click', (e) => {
+    const t = (n) => e.target.closest('[data-' + n + ']');
+    if (t('sale-baru')) borangSale(null);
+    else if (t('sale-edit')) { const s = cariSale(t('sale-edit').dataset.saleEdit); if (s) borangSale(s); }
+    else if (t('sale-kal')) kalendarSale(t('sale-kal').dataset.saleKal);
+    else if (t('sale-tempah')) {
+      const s = cariSale(t('sale-tempah').dataset.saleTempah);
+      if (s) borangTempahan({ jenis: s.jenis, nama: s.nama });
+    }
+  });
+  $('btnSale').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaSale, 0); });
+  $('bannerSale').addEventListener('click', bukaSale);
+  setInterval(() => {
+    paparBannerSale();
+    if ($('dlgPanel').open && panelLukis === paparSale) paparSale();
+  }, 60000);
+
   /* ---------- Tetapan ---------- */
 
   $('btnMenu').addEventListener('click', () => {
@@ -3043,7 +3288,7 @@
     if (cara === 'ganti') {
       data = Object.assign(baru, { bank: baru.bank || data.bank, kadar: baru.kadar || data.kadar });
     } else {
-      ['items', 'orders', 'kotak', 'hantar'].forEach((kunci) => {
+      ['items', 'orders', 'kotak', 'hantar', 'sale'].forEach((kunci) => {
         baru[kunci].forEach((x) => {
           const i = data[kunci].findIndex((y) => y.id === x.id);
           if (i >= 0) data[kunci][i] = x; else data[kunci].push(x);
@@ -3068,6 +3313,7 @@
   const KUNCI_SELARAS = 'diecast-selaras';
   const NAMA_FAIL = 'diecast.json';
   const SKOP = 'https://www.googleapis.com/auth/drive.appdata';
+  const SKOP_KAL = 'https://www.googleapis.com/auth/calendar.events';
   const DRIVE = 'https://www.googleapis.com/drive/v3';
   const MUAT_NAIK = 'https://www.googleapis.com/upload/drive/v3/files';
 
@@ -3125,7 +3371,7 @@
 
   // Minta token Google. Mesti dipanggil daripada ketukan pengguna (tetingkap Google dibuka).
   let klienToken = null;
-  function mintaToken() {
+  function mintaToken(skop) {
     return muatGis().then(() => new Promise((ok, gagal) => {
       const id = (window.DIECAST_CONFIG || {}).CLIENT_ID;
       if (!id) { gagal(ralatSelaras('cfg')); return; }
@@ -3134,11 +3380,13 @@
         if (!r || r.error) { gagal(ralatSelaras((r && r.error) || 'token')); return; }
         selaras.tok = r.access_token;
         selaras.exp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
+        selaras.kal = String(r.scope || '').split(' ').includes(SKOP_KAL);
         simpanSelaras();
         ok();
       };
       klienToken.error_callback = (e) => gagal(ralatSelaras((e && e.type) || 'popup'));
       const o = { prompt: '' };
+      if (skop) o.scope = skop;
       if (selaras.emel) o.hint = selaras.emel;
       klienToken.requestAccessToken(o);
     }));

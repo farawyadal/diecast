@@ -30,6 +30,12 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 
 Ikon di atas: **Senarai order CM**, **Arkib**, dan **Pelanggan** (baki setiap pelanggan; dari situ boleh **Tukar nama / gabung** dua nama yang sebenarnya orang sama).
 
+## Sale akan datang
+
+Tiga titik > **Sale akan datang** > **+ Sale baru**: isi item, tarikh dan masa. Masa boleh dimasukkan dalam waktu Malaysia, Pasifik US (PT) atau Timur US (ET); apps tukar sendiri ke waktu Malaysia (termasuk waktu musim panas US). Banner muncul di atas senarai bila sale tinggal kurang 24 jam. **Buat tempahan** terus dari sale.
+
+**Tambah ke kalendar** cipta acara dalam Google Calendar dengan peringatan 30 dan 15 minit sebelum sale, jadi telefon berbunyi walaupun apps ditutup. Kali pertama, Google minta kebenaran kalendar. Edit sale = acara dikemas kini; padam sale = acara dipadam. Perlu **Google Calendar API** diaktifkan dalam projek Google Cloud yang sama dengan Client ID (APIs & Services > Library > Google Calendar API > Enable).
+
 ## Bahasa
 
 Tiga titik > **Bahasa**: Bahasa Melayu atau English. Apps dimuat semula bila bahasa ditukar. Data sendiri (nama item, pelanggan, catatan) dan mesej WhatsApp kepada pelanggan kekal seperti ditaip. Terjemahan English ada dalam `en.js`.
