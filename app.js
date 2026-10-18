@@ -609,10 +609,11 @@
     if (it.arkib) bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + '</div>';
     else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
     const bolehLeret = !it.arkib;
+    const sg = srcGambar(it.gambar);
     return '<div class="kad-bungkus"' + (bolehLeret ? ' data-leret="' + esc(it.id) + '"' : '') + '>' +
       (bolehLeret ? '<div class="leret-latar" aria-hidden="true"><span class="l-kanan">✓ Bayar penuh</span><span class="l-kiri">Selesai · arkib ✓</span></div>' : '') +
-      '<button type="button" class="kad st-' + (aku ? 'aku' : st) + (it.gambar ? ' ada-gambar' : '') + '" data-id="' + esc(it.id) + '">' +
-      (it.gambar ? '<img class="kad-gambar" src="' + esc(it.gambar) + '" alt="" loading="lazy" draggable="false">' : '') +
+      '<button type="button" class="kad st-' + (aku ? 'aku' : st) + (sg ? ' ada-gambar' : '') + '" data-id="' + esc(it.id) + '">' +
+      (sg ? '<img class="kad-gambar" src="' + esc(sg) + '" alt="" loading="lazy" draggable="false">' : '') +
       '<div class="kad-atas"><div class="kad-nama">' +
       (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') + esc(it.nama) +
       (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</div>' + pil + '</div>' +
@@ -716,6 +717,30 @@
     return [...peta.values()];
   }
 
+  // Untung item jual: hanya dikira bila kos lengkap.
+  function kiraUntung(its) {
+    return its.reduce((g, it) => {
+      g.n++;
+      if (it.kat !== 'jual') return g;
+      const k = kosItem(it);
+      if (k.lengkap) { g.jual += it.harga; g.kos += k.jumlah; g.untung += it.harga - k.jumlah; g.ada++; } else g.tak++;
+      return g;
+    }, { n: 0, ada: 0, jual: 0, kos: 0, untung: 0, tak: 0 });
+  }
+  const tahunDari = (ms) => new Date(ms).getFullYear();
+  // Senarai tahun (terbaru dulu, tahun semasa sentiasa ada) dan tahun yang dipilih.
+  function pilihTahun(its, simpanan) {
+    const kini = new Date().getFullYear();
+    const ada = [...new Set(its.map((it) => tahunDari(it.arkib)).concat(kini))].sort((a, b) => b - a);
+    const pilih = simpanan === 'semua' || ada.includes(simpanan) ? simpanan : kini;
+    return { ada, pilih };
+  }
+  function htmlCipTahun(t, attr) {
+    return '<div class="cip cip-tahun" role="group" aria-label="Tahun">' + t.ada.concat('semua').map((y) =>
+      '<button type="button" ' + attr + '="' + y + '"' + (y === t.pilih ? ' class="aktif"' : '') + '>' + (y === 'semua' ? 'Semua' : y) + '</button>').join('') + '</div>';
+  }
+  const bulanBuka = new Map(); // kunci bulan Arkib -> terbuka?
+
   function papar() {
     paparTab();
     $('bannerLogin').hidden = selaras.aktif || !!tetapan.tutupBanner || !data.items.length;
@@ -726,7 +751,13 @@
     $('ringkas').hidden = !ada;
     if (!ada) { $('tab').hidden = true; $('senarai').innerHTML = ''; return; }
 
-    const semua = itemTab(tab).filter(padanCari);
+    let semua = itemTab(tab).filter(padanCari);
+    let arkibT = null;
+    if (tab === 'arkib') {
+      // Arkib dipaparkan ikut tahun. Carian merangkumi semua tahun.
+      arkibT = pilihTahun(itemTab('arkib'), tetapan.arkibTahun);
+      if (!cari && arkibT.pilih !== 'semua') semua = semua.filter((it) => tahunDari(it.arkib) === arkibT.pilih);
+    }
     paparRingkas(semua);
     const nampak = semua.filter(padanStatus);
     const ditapis = !!cari || tetapan.status !== 'semua';
@@ -842,14 +873,24 @@
         html += htmlKumpulan({ tajuk: g.nama, sub: g.items.length + ' item' + (bk > 0 ? ' · baki perlu dibayar <b>' + rm(bk) + '</b>' : ''), items: g.items, kad: {} });
       });
     } else if (tab === 'arkib') {
+      if (!cari) html += htmlCipTahun(arkibT, 'data-arkib-tahun');
       const kump = new Map();
       nampak.sort((a, b) => b.arkib - a.arkib).forEach((it) => {
         const d = new Date(it.arkib);
-        const k = BULAN[d.getMonth()] + ' ' + d.getFullYear();
-        if (!kump.has(k)) kump.set(k, []);
-        kump.get(k).push(it);
+        const k = d.getFullYear() * 100 + d.getMonth();
+        if (!kump.has(k)) kump.set(k, { label: BULAN[d.getMonth()] + ' ' + d.getFullYear(), items: [] });
+        kump.get(k).items.push(it);
       });
-      kump.forEach((its, k) => { html += htmlKumpulan({ tajuk: k, sub: its.length + ' item', items: its, kad: { orang: true, peringkat: false } }); });
+      let pertama = true;
+      kump.forEach((g, k) => {
+        const u = kiraUntung(g.items);
+        const buka = ditapis || (bulanBuka.has(k) ? bulanBuka.get(k) : pertama);
+        pertama = false;
+        html += '<details class="kump kump-bulan" data-bulan="' + k + '"' + (buka ? ' open' : '') + '><summary class="kump-tajuk">' +
+          '<span><b>' + esc(g.label) + '</b><small>' + g.items.length + ' item' + (u.ada ? ' · jual ' + rm(u.jual) + ' · untung <span class="' + (u.untung < 0 ? 'rugi' : 'untung') + '">' + rm(u.untung) + '</span>' : '') +
+          (u.tak ? ' · ' + u.tak + ' tanpa kos' : '') + '</small></span><span class="anak">›</span></summary>' +
+          g.items.map((it) => htmlKad(it, { orang: true, peringkat: false })).join('') + '</details>';
+      });
     }
 
     if (!nampak.length) {
@@ -861,14 +902,27 @@
         luar: 'Tiada barang peribadi. Bahagian ini untuk barang yang dibeli daripada pihak lain.',
         arkib: 'Belum ada item selesai.',
       }[tab];
-      if (tab !== 'beli') html = '';
-      html += '<p class="kosong">' + esc(kosong) + '</p>';
+      if (tab !== 'beli' && !(tab === 'arkib' && !cari)) html = '';
+      const kosongArkib = tab === 'arkib' && !ditapis && itemTab('arkib').length && arkibT.pilih !== 'semua' ? 'Tiada item selesai pada ' + arkibT.pilih + '.' : '';
+      html += '<p class="kosong">' + esc(kosongArkib || kosong) + '</p>';
     }
     $('senarai').innerHTML = html;
   }
 
+  $('senarai').addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (d.matches && d.matches('details[data-bulan]')) bulanBuka.set(Number(d.dataset.bulan), d.open);
+  }, true);
   $('senarai').addEventListener('click', (e) => {
     if (abaikanKlik) { abaikanKlik = false; return; }
+    const ty = e.target.closest('[data-arkib-tahun]');
+    if (ty) {
+      const v = ty.dataset.arkibTahun;
+      tetapan.arkibTahun = v === 'semua' ? v : Number(v);
+      simpanTetapan();
+      papar();
+      return;
+    }
     const sal = e.target.closest('[data-salin]');
     if (sal) { salin(sal.dataset.salin); return; }
     if (e.target.closest('a.no-jejak')) return;
@@ -1059,7 +1113,7 @@
 
   // Gambar dalam baris tempahan / order: pilih dari galeri / kamera, atau tampal pautan.
   function htmlGambarBaris(gambar) {
-    return '<div class="gambar-baris"><span class="gb-pratonton">' + (gambar ? '<img src="' + esc(gambar) + '" alt="">' : '') + '</span>' +
+    return '<div class="gambar-baris"><span class="gb-pratonton">' + (srcGambar(gambar) ? '<img src="' + esc(srcGambar(gambar)) + '" alt="">' : '') + '</span>' +
       '<input type="hidden" name="gambar" value="' + esc(gambar || '') + '">' +
       '<label class="btn kecil"><input type="file" accept="image/*" data-gambar-fail hidden>' + (gambar ? 'Tukar gambar' : '+ Gambar') + '</label>' +
       '<button type="button" class="btn kecil" data-gambar-pautan>Pautan</button>' +
@@ -1073,7 +1127,7 @@
     const fail = e.target.files && e.target.files[0];
     const baris = e.target.closest('.baris-order');
     if (!fail || !baris) return;
-    try { setGambarBaris(baris, await kecilkanGambar(fail)); } catch (err) { toast('Gambar tidak dapat dibaca.'); }
+    try { setGambarBaris(baris, await gambarDariFail(fail)); } catch (err) { toast('Gambar tidak dapat dibaca.'); }
   });
   $('formX').addEventListener('click', (e) => {
     const baris = e.target.closest('.baris-order');
@@ -1290,7 +1344,7 @@
             const bayar = bulat(x.bayar);
             data.items.push(bersihItem({
               kat: aku ? 'aku' : 'jual', jenis: x.jenis, nama: x.nama, qty: x.qty, orang: x.orang, tel: aku ? '' : telUntuk(x.orang),
-              harga: aku ? 0 : x.harga, gambar: x.gambar, dibuat: Date.now(), urutan: Date.now() + i,
+              harga: aku ? 0 : x.harga, gambar: x.gambar || gambarSama(x.jenis, x.nama), dibuat: Date.now(), urutan: Date.now() + i,
               bayaran: bayar && !aku ? [{ amaun: bayar, t: Date.now(), nota: 'Bayaran awal' }] : [],
             }));
           });
@@ -1345,7 +1399,7 @@
             const aku = kunciOrang(x.orang) === AKU;
             data.items.push(bersihItem({
               kat: aku ? 'aku' : 'jual', jenis: x.jenis, nama: x.nama, qty: x.qty, orang: x.orang, tel: aku ? '' : telUntuk(x.orang),
-              harga: aku ? 0 : x.harga, beli: x.beli, gambar: x.gambar, orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
+              harga: aku ? 0 : x.harga, beli: x.beli, gambar: x.gambar || gambarSama(x.jenis, x.nama), orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
             }));
           });
           if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
@@ -2048,8 +2102,8 @@
     const k = it.kotakId ? cariKotak(it.kotakId) : null;
     const hh = it.hantarId ? cariHantar(it.hantarId) : null;
 
-    let html = (it.gambar
-      ? '<button type="button" class="butir-gambar" data-aksi="gambar"><img src="' + esc(it.gambar) + '" alt="' + esc(labelItem(it)) + '"></button>'
+    let html = (srcGambar(it.gambar)
+      ? '<button type="button" class="butir-gambar" data-aksi="gambar"><img src="' + esc(srcGambar(it.gambar)) + '" alt="' + esc(labelItem(it)) + '"></button>'
       : '<button type="button" class="tambah-gambar" data-aksi="gambar">+ Gambar item</button>') +
       '<div class="butir-kepala"><h2>' + (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') +
       esc(it.nama) + (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</h2>' +
@@ -2227,6 +2281,131 @@
 
   /* ---------- Gambar item ---------- */
 
+  /*
+    Gambar yang dimuat naik disimpan berasingan daripada data utama supaya data kekal kecil:
+    dalam peranti (IndexedDB), dan satu fail bagi setiap gambar dalam folder apps Google Drive.
+    Item hanya simpan rujukan 'g:<cincang>'. Gambar yang sama (contoh: item bernama sama)
+    disimpan sekali sahaja. Pautan https:// kekal seperti biasa.
+  */
+  const AWALAN_GB = 'g:';
+  const urlGambar = new Map(); // cincang -> object URL
+  let siapGambar = Promise.resolve(); // selesai bila gambar dalam peranti sudah dimuat
+  const hashGambar = (v) => (typeof v === 'string' && v.startsWith(AWALAN_GB) ? v.slice(AWALAN_GB.length) : '');
+  function srcGambar(v) {
+    if (!v) return '';
+    const h = hashGambar(v);
+    return h ? urlGambar.get(h) || '' : v;
+  }
+  let idbJanji = null;
+  function bukaIdb() {
+    if (!idbJanji) {
+      idbJanji = new Promise((ok, gagal) => {
+        if (!window.indexedDB) { gagal(new Error('idb')); return; }
+        const r = indexedDB.open('diecast-gambar', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('g');
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => gagal(r.error);
+      });
+      idbJanji.catch(() => { idbJanji = null; });
+    }
+    return idbJanji;
+  }
+  // fn(store) boleh pulangkan request; hasilnya dipulangkan selepas transaksi selesai.
+  async function idb(mod, fn) {
+    const db = await bukaIdb();
+    return new Promise((ok, gagal) => {
+      const tx = db.transaction('g', mod);
+      let hasil;
+      const r = fn(tx.objectStore('g'));
+      if (r) r.onsuccess = () => { hasil = r.result; };
+      tx.oncomplete = () => ok(hasil);
+      tx.onerror = () => gagal(tx.error);
+      tx.onabort = () => gagal(tx.error);
+    });
+  }
+  function semuaGambarIdb(fn) {
+    return idb('readonly', (st) => {
+      const r = st.openCursor();
+      r.onsuccess = () => { const c = r.result; if (c) { fn(c.key, c.value); c.continue(); } };
+      return null;
+    });
+  }
+  async function cincang(blob) {
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    if (window.crypto && crypto.subtle) {
+      const d = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
+      return [...d.slice(0, 12)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    let a = 0x811c9dc5, b = 0x01000193 ^ buf.length;
+    for (let i = 0; i < buf.length; i++) { a = Math.imul(a ^ buf[i], 16777619) >>> 0; b = Math.imul(b ^ buf[i], 2246822519) >>> 0; }
+    return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0') + buf.length.toString(16).padStart(8, '0');
+  }
+  async function simpanBlob(blob, h) {
+    h = h || await cincang(blob);
+    if (!urlGambar.has(h)) {
+      await idb('readwrite', (st) => st.put(blob, h));
+      urlGambar.set(h, URL.createObjectURL(blob));
+    }
+    return AWALAN_GB + h;
+  }
+  const dataKeBlob = async (d) => (await fetch(d)).blob();
+  function blobKeData(blob) {
+    return new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => gagal(r.error); r.readAsDataURL(blob); });
+  }
+  const bacaBlob = (h) => idb('readonly', (st) => st.get(h));
+  // Gambar dari galeri / kamera: kecilkan, simpan dalam peranti, pulangkan rujukan.
+  async function gambarDariFail(fail) {
+    const d = await kecilkanGambar(fail);
+    try { return await simpanBlob(await dataKeBlob(d)); } catch (e) { return d; } // tiada IndexedDB: simpan terus dalam data
+  }
+  // Item baru tanpa gambar guna gambar item lain yang bernama sama.
+  function gambarSama(jenis, nama) {
+    const k = kunciOrang((jenis || '') + ' ' + (nama || ''));
+    const x = data.items.find((y) => y.gambar && kunciOrang(y.jenis + ' ' + y.nama) === k);
+    return x ? x.gambar : '';
+  }
+  async function muatGambar() {
+    try { await semuaGambarIdb((h, blob) => { if (!urlGambar.has(h)) urlGambar.set(h, URL.createObjectURL(blob)); }); } catch (e) { /* tiada IndexedDB */ }
+  }
+  // Pindahkan gambar lama (data URL dalam data) ke simpanan gambar.
+  async function pindahGambar() {
+    const lama = data.items.filter((it) => /^data:image\//.test(it.gambar || ''));
+    if (!lama.length) return 0;
+    const peta = new Map();
+    for (const it of lama) {
+      if (peta.has(it.gambar)) continue;
+      try { peta.set(it.gambar, await simpanBlob(await dataKeBlob(it.gambar))); } catch (e) { peta.set(it.gambar, null); }
+    }
+    let n = 0;
+    lama.forEach((it) => { const r = peta.get(it.gambar); if (r) { it.gambar = r; n++; } });
+    if (n) simpan();
+    return n;
+  }
+  // Buang gambar dalam peranti yang tiada item lagi merujuknya.
+  async function kemasGambar() {
+    const guna = new Set(data.items.map((it) => hashGambar(it.gambar)).filter(Boolean));
+    const buang = [...urlGambar.keys()].filter((h) => !guna.has(h));
+    if (!buang.length) return;
+    try {
+      await idb('readwrite', (st) => { buang.forEach((h) => st.delete(h)); return null; });
+      buang.forEach((h) => { URL.revokeObjectURL(urlGambar.get(h)); urlGambar.delete(h); });
+    } catch (e) { /* cuba lain kali */ }
+  }
+  async function saizStoran() {
+    let n = 0, bait = 0;
+    try { await semuaGambarIdb((h, blob) => { n++; bait += blob.size || 0; }); } catch (e) { /* tiada IndexedDB */ }
+    let dataBait = 0;
+    try { dataBait = new Blob([localStorage.getItem(KUNCI) || '']).size; } catch (e) { /* abai */ }
+    const tiadaGb = data.items.filter((it) => hashGambar(it.gambar) && !urlGambar.has(hashGambar(it.gambar))).length;
+    return { n, bait, dataBait, tiadaGb };
+  }
+  const saizTeks = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+  async function paparStoran() {
+    const s = await saizStoran();
+    $('storanNota').textContent = 'Data: ' + saizTeks(s.dataBait) + ' (had peranti lebih kurang 5 MB). Gambar: ' + s.n + ' fail, ' + saizTeks(s.bait) +
+      ' (disimpan berasingan, tiada had ketat).' + (s.tiadaGb ? ' ' + s.tiadaGb + ' item menunggu gambar dari Google Drive.' : '');
+  }
+
   // Kecilkan gambar (sisi terpanjang 480px, JPEG) supaya data kecil dan laju diselaras.
   function kecilkanGambar(fail) {
     return new Promise((ok, gagal) => {
@@ -2265,11 +2444,11 @@
             : '<span class="pg-kosong">' + IKON_KAMERA + '<b>Ketik untuk pilih / ambil gambar</b></span>';
           f.querySelector('[data-ada-gambar]').hidden = !src;
         };
-        tunjuk(it.gambar);
+        tunjuk(srcGambar(it.gambar));
         f.fail.addEventListener('change', async () => {
           const fail = f.fail.files && f.fail.files[0];
           if (!fail) return;
-          try { f.gambar.value = await kecilkanGambar(fail); f.pautan.value = ''; tunjuk(f.gambar.value); }
+          try { f.gambar.value = await gambarDariFail(fail); f.pautan.value = ''; tunjuk(srcGambar(f.gambar.value)); }
           catch (e) { toast('Gambar tidak dapat dibaca.'); }
         });
         f.pautan.addEventListener('change', () => { const v = f.pautan.value.trim(); f.gambar.value = v; tunjuk(v); });
@@ -2278,7 +2457,7 @@
       },
       hantar(f) {
         const v = f.pautan.value.trim() || f.gambar.value;
-        if (v && !/^(https?:|data:image\/)/.test(v)) return 'Pautan gambar mesti bermula dengan https://';
+        if (v && !/^(https?:|data:image\/|g:)/.test(v)) return 'Pautan gambar mesti bermula dengan https://';
         ubah(() => {
           it.gambar = v;
           if (v && f.semua && f.semua.checked) sama.forEach((x) => { x.gambar = v; });
@@ -2701,37 +2880,49 @@
 
   function paparUntung() {
     const jual = data.items.filter((it) => it.kat === 'jual');
-    const bulan = new Map();
-    let tak = 0;
-    jual.forEach((it) => {
-      const o = it.orderId ? cariOrder(it.orderId) : null;
-      const d = new Date(o ? o.tBeli : it.dibuat);
-      const kunci = d.getFullYear() * 100 + d.getMonth();
-      if (!bulan.has(kunci)) bulan.set(kunci, { label: BULAN[d.getMonth()] + ' ' + d.getFullYear(), n: 0, jual: 0, kos: 0, untung: 0, tak: 0, selesai: 0 });
-      const g = bulan.get(kunci);
-      const k = kosItem(it);
-      g.n++;
-      if (it.arkib) g.selesai++;
-      if (k.lengkap) { g.jual += it.harga; g.kos += k.jumlah; g.untung += it.harga - k.jumlah; } else { g.tak++; tak++; }
-    });
-    const baris = [...bulan.entries()].sort((a, b) => b[0] - a[0]).map((x) => x[1]);
-    const jum = baris.reduce((j, g) => ({ jual: j.jual + g.jual, kos: j.kos + g.kos, untung: j.untung + g.untung }), { jual: 0, kos: 0, untung: 0 });
+    const selesai = jual.filter((it) => it.arkib);
+    const belum = jual.filter((it) => !it.arkib);
+    const t = pilihTahun(selesai, tetapan.untungTahun);
+    const dlm = t.pilih === 'semua' ? selesai : selesai.filter((it) => tahunDari(it.arkib) === t.pilih);
+    const jum = kiraUntung(dlm);
+    const kelasU = (u) => (u < 0 ? 'rugi' : 'untung');
     const kotakKos = data.kotak.reduce((j, k) => j + (k.kos || 0), 0);
     const jnt = data.hantar.reduce((j, h) => j + (h.kos || 0), 0);
+    const jadual = (tajuk, baris) => '<table class="jadual"><thead><tr><th>' + tajuk + '</th><th>Jual</th><th>Kos</th><th>Untung</th></tr></thead><tbody>' +
+      baris.map((g) => '<tr><td><b>' + g.label + '</b><small>' + g.n + ' item' + (g.tak ? ' · ' + g.tak + ' tanpa kos' : '') + '</small></td><td>' + rm(g.jual) + '</td><td>' + rm(g.kos) +
+        '</td><td class="' + kelasU(g.untung) + '">' + rm(g.untung) + '</td></tr>').join('') + '</tbody></table>';
+    const ikut = (its, kunci, label) => {
+      const m = new Map();
+      its.forEach((it) => { const k = kunci(it); if (!m.has(k)) m.set(k, []); m.get(k).push(it); });
+      return [...m.entries()].sort((a, b) => b[0] - a[0]).map(([k, x]) => Object.assign(kiraUntung(x), { label: label(k) }));
+    };
 
-    let html = '<h2>Untung rugi</h2><p class="nota">Ikut bulan order. Kira hanya item yang ada kos lengkap (harga beli dan kadar, atau kos RM).</p>';
+    let html = '<h2>Untung rugi</h2><p class="nota">Untung dikira pada tarikh item selesai (diterima pelanggan dan masuk Arkib). Hanya item yang ada kos lengkap dikira.</p>';
+    html += htmlCipTahun(t, 'data-untung-tahun');
     html += '<div class="wang3"><div><span>Jualan</span><b>' + rm(jum.jual) + '</b></div><div><span>Kos sebenar</span><b>' + rm(jum.kos) + '</b></div>' +
       '<div class="' + (jum.untung < 0 ? 'baki' : 'baki sifar') + '"><span>Untung</span><b>' + rm(jum.untung) + '</b></div></div>';
-    html += '<table class="jadual"><thead><tr><th>Bulan</th><th>Jual</th><th>Kos</th><th>Untung</th></tr></thead><tbody>' +
-      baris.map((g) => '<tr><td><b>' + g.label + '</b><small>' + g.n + ' item' + (g.tak ? ' · ' + g.tak + ' tanpa kos' : '') + '</small></td><td>' + rm(g.jual) + '</td><td>' + rm(g.kos) +
-        '</td><td class="' + (g.untung < 0 ? 'rugi' : 'untung') + '">' + rm(g.untung) + '</td></tr>').join('') + '</tbody></table>';
-    if (tak) {
-      html += '<h3>' + tak + ' item belum ada kos</h3><p class="nota">Isi anggaran kos beli (RM, jumlah untuk semua unit) terus di sini, kemudian tekan Simpan kos. Ketuk nama item untuk buka butirannya.</p>';
-      html += '<div class="senarai-kos">' + jual.filter((it) => !kosItem(it).lengkap).sort(urut).map((it) => {
+    if (t.pilih !== 'semua') {
+      const bulan = ikut(dlm, (it) => new Date(it.arkib).getMonth(), (m) => BULAN[m] + ' ' + t.pilih);
+      html += bulan.length ? '<h3>Ikut bulan · ' + t.pilih + '</h3>' + jadual('Bulan', bulan) : '<p class="nota">Tiada item selesai pada ' + t.pilih + '.</p>';
+    }
+    const tahunan = ikut(selesai, (it) => tahunDari(it.arkib), (y) => String(y));
+    if (tahunan.length > 1 || t.pilih === 'semua') html += '<h3>Perbandingan tahunan</h3>' + (tahunan.length ? jadual('Tahun', tahunan) : '<p class="nota">Belum ada item selesai.</p>');
+
+    if (belum.length) {
+      const b = kiraUntung(belum);
+      html += '<h3>Belum selesai (anggaran)</h3><p class="nota">' + b.n + ' item masih dalam proses dan belum dikira dalam untung di atas.' +
+        (b.ada ? ' Anggaran untung ' + rm(b.untung) + ' daripada jualan ' + rm(b.jual) + ' (' + b.ada + ' item).' : '') +
+        (b.tak ? ' ' + b.tak + ' item belum ada kos.' : '') + '</p>';
+    }
+
+    const tanpaKos = jual.filter((it) => !kosItem(it).lengkap);
+    if (tanpaKos.length) {
+      html += '<h3>' + tanpaKos.length + ' item belum ada kos</h3><p class="nota">Isi anggaran kos beli (RM, jumlah untuk semua unit) terus di sini, kemudian tekan Simpan kos. Ketuk nama item untuk buka butirannya.</p>';
+      html += '<div class="senarai-kos">' + tanpaKos.sort(urut).map((it) => {
         const o = it.orderId ? cariOrder(it.orderId) : null;
         const sebab = !o ? 'Tiada order' : it.beli === null ? 'Harga beli belum diisi · ' + (o.no || 'order') : 'Kadar order belum diisi · ' + (o.no || 'order');
         return '<div class="baris-kos"><button type="button" class="isi" data-item="' + esc(it.id) + '"><b>' + esc(labelItem(it)) + '</b>' +
-          '<small>' + esc(it.orang) + ' · jual ' + rm(it.harga) + ' · ' + esc(sebab) + '</small></button>' +
+          '<small>' + esc(it.orang) + ' · jual ' + rm(it.harga) + ' · ' + esc(sebab) + (it.arkib ? ' · selesai ' + tarikh(it.arkib) : '') + '</small></button>' +
           '<label class="tag-beli"><span>Kos RM</span><input type="number" inputmode="decimal" min="0" step="0.01" data-kos-anggaran="' + esc(it.id) + '"></label></div>';
       }).join('') + '</div>' +
         '<button type="button" class="btn utama penuh-lebar" data-simpan-kos="1">Simpan kos</button>';
@@ -2742,6 +2933,14 @@
   }
   $('panelIsi').addEventListener('click', (e) => {
     if (e.target.closest('[data-tutup]')) { tutup($('dlgPanel')); return; }
+    const ty = e.target.closest('[data-untung-tahun]');
+    if (ty) {
+      const v = ty.dataset.untungTahun;
+      tetapan.untungTahun = v === 'semua' ? v : Number(v);
+      simpanTetapan();
+      paparUntung();
+      return;
+    }
     const o = e.target.closest('[data-order]');
     if (o) { bukaOrder(o.dataset.order); return; }
     if (e.target.closest('[data-simpan-kos]')) {
@@ -2772,6 +2971,7 @@
     $('tetMarkup').value = data.markup || '';
     gunaTema();
     paparTetapanSelaras();
+    paparStoran();
     if (selaras.aktif) muatGis().catch(() => {});
     buka($('dlgMenu'));
   });
@@ -2798,8 +2998,13 @@
 
   /* ---------- Simpan salinan dan import ---------- */
 
-  $('btnEksport').addEventListener('click', () => {
-    const isi = JSON.stringify(Object.assign({ disimpan: Date.now() }, eksportData()), null, 1);
+  $('btnEksport').addEventListener('click', async () => {
+    // Gambar dalam peranti disertakan supaya salinan lengkap.
+    const gambar = {};
+    for (const h of new Set(data.items.map((it) => hashGambar(it.gambar)).filter(Boolean))) {
+      try { const b = await bacaBlob(h); if (b) gambar[h] = await blobKeData(b); } catch (e) { /* abai */ }
+    }
+    const isi = JSON.stringify(Object.assign({ disimpan: Date.now() }, eksportData(), Object.keys(gambar).length ? { gambar } : {}), null, 1);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([isi], { type: 'application/json' }));
     a.download = 'diecast-salinan-' + tarikhInput() + '.json';
@@ -2820,6 +3025,12 @@
     try { j = JSON.parse(await fail.text()); } catch (err) { toast('Fail ini bukan fail Diecast.'); return; }
     if (!j || !Array.isArray(j.items)) { toast('Fail ini bukan fail Diecast.'); return; }
     const baru = bersihData(j);
+    if (j.gambar && typeof j.gambar === 'object') {
+      for (const [h, d] of Object.entries(j.gambar)) {
+        if (!/^[0-9a-f]+$/.test(h) || !/^data:image\//.test(String(d))) continue;
+        try { await simpanBlob(await dataKeBlob(d), h); } catch (e) { /* abai */ }
+      }
+    }
     let cara = 'ganti';
     if (data.items.length) {
       cara = await tanya({
@@ -2993,6 +3204,38 @@
     selaras.asas = data.diubah;
   }
 
+  // Gambar: satu fail g-<cincang>.jpg bagi setiap gambar dalam folder apps. Muat naik yang
+  // belum ada di Drive, muat turun yang belum ada dalam peranti. Hanya gambar yang dirujuk item.
+  async function selarasGambar() {
+    const perlu = [...new Set(data.items.map((it) => hashGambar(it.gambar)).filter(Boolean))];
+    if (!perlu.length) return;
+    const jauh = new Map();
+    let halaman = '';
+    do {
+      const j = await (await gfetch(DRIVE + '/files?spaces=appDataFolder&pageSize=1000&fields=nextPageToken,files(id,name)' +
+        (halaman ? '&pageToken=' + encodeURIComponent(halaman) : ''))).json();
+      (j.files || []).forEach((f) => { const m = /^g-([0-9a-f]+)\.jpg$/.exec(f.name || ''); if (m) jauh.set(m[1], f.id); });
+      halaman = j.nextPageToken || '';
+    } while (halaman);
+    let baru = 0;
+    for (const h of perlu) {
+      if (urlGambar.has(h) && !jauh.has(h)) {
+        const blob = await bacaBlob(h);
+        if (!blob) continue;
+        const b = 'diecastg' + Date.now();
+        const badan = new Blob(['--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' +
+          JSON.stringify({ name: 'g-' + h + '.jpg', parents: ['appDataFolder'] }) +
+          '\r\n--' + b + '\r\nContent-Type: ' + (blob.type || 'image/jpeg') + '\r\n\r\n', blob, '\r\n--' + b + '--']);
+        await gfetch(MUAT_NAIK + '?uploadType=multipart&fields=id', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: badan });
+      } else if (!urlGambar.has(h) && jauh.has(h)) {
+        const blob = await (await gfetch(DRIVE + '/files/' + jauh.get(h) + '?alt=media')).blob();
+        await simpanBlob(blob, h);
+        baru++;
+      }
+    }
+    if (baru) { papar(); if ($('dlgButir').open) paparButir(); }
+  }
+
   function gunaJauh(jauh, mesej) {
     data = bersihData(jauh);
     simpan({ kekal: true });
@@ -3035,6 +3278,8 @@
           else { await tulisJauh(); hasil = 'hantar'; }
         }
       }
+      if (hasil === 'muat') await pindahGambar();
+      try { await siapGambar; await selarasGambar(); } catch (e) { if (e.kod === 'auth') throw e; }
       selaras.masa = Date.now();
       simpanSelaras();
       setStatus('ok');
@@ -3229,6 +3474,11 @@
   pasangTerjemahan();
   muat();
   papar();
+  siapGambar = muatGambar().then(async () => {
+    await pindahGambar();
+    papar();
+    setTimeout(kemasGambar, 5000);
+  });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;

@@ -43,7 +43,9 @@ Kos sebenar setiap item:
 3. **Kos posting BNS** kotak, dibahagi ikut (1 + 2)
 4. **Kos J&T** hantaran, dibahagi ikut (1 + 2)
 
-Untung = harga jual − kos sebenar. Laporan ikut bulan ada dalam tiga titik > **Untung rugi**.
+Untung = harga jual − kos sebenar. Laporan dalam tiga titik > **Untung rugi**: untung dikira pada **tarikh item selesai** (masuk Arkib), dipecah ikut tahun (pilih tahun atau *Semua*), ikut bulan, dan perbandingan tahunan. Item yang belum selesai ditunjuk berasingan sebagai anggaran.
+
+**Arkib** dipapar ikut tahun (tahun semasa dulu; ketik tahun lain atau *Semua*). Setiap bulan boleh dibuka / dilipat dan menunjukkan bilangan item, jualan dan untung. Carian merangkumi semua tahun. Tiada item dibuang.
 
 Kadar tukaran diambil sendiri ikut **tarikh beli** order (kadar pasaran USD→MYR dari Frankfurter/ECB; hujung minggu guna hari bekerja sebelumnya). Kalau nak lebih tepat:
 
@@ -95,4 +97,6 @@ Kali pertama buka, tekan **Import senarai** dan pilih `senarai-awal.json`. Fail 
 
 ## Data disimpan di mana
 
-Data disimpan dalam browser peranti itu, dan dalam Google Drive kalau disambung. Tak ada data disimpan di GitHub. Tanpa Drive, sekali-sekala tekan **Simpan salinan**.
+Data disimpan dalam browser peranti itu, dan dalam Google Drive kalau disambung. Tak ada data disimpan di GitHub. Tanpa Drive, sekali-sekala tekan **Simpan salinan** (gambar disertakan).
+
+Gambar disimpan berasingan daripada data utama: dalam IndexedDB peranti, dan satu fail bagi setiap gambar dalam folder apps Google Drive. Item hanya simpan rujukan, jadi data utama kekal kecil. Gambar yang sama (contoh: item bernama sama) disimpan sekali sahaja. Saiz storan ditunjuk dalam tiga titik > **Data**.

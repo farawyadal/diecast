@@ -1405,3 +1405,14 @@ label.pratonton-gambar:hover { border-color: var(--utama); }
 }
 
 [data-ada-gambar] { margin-bottom: 12px; }
+
+/* Arkib dan untung rugi ikut tahun */
+.cip-tahun { margin: 0 0 12px; }
+#panelIsi .cip-tahun { margin: 4px 0 12px; }
+details.kump-bulan > summary { list-style: none; cursor: pointer; margin: 0 0 8px; }
+details.kump-bulan > summary::-webkit-details-marker { display: none; }
+details.kump-bulan > summary .anak { margin-left: auto; transition: transform 0.15s; }
+details.kump-bulan[open] > summary .anak { transform: rotate(90deg); }
+details.kump-bulan:not([open]) { margin-bottom: 4px; }
+.kump-tajuk small .untung { color: var(--lunas-teks, inherit); font-weight: 700; }
+.kump-tajuk small .rugi { color: var(--belum-teks); font-weight: 700; }
