@@ -1385,3 +1385,23 @@ dialog.imbas {
 .gb-pratonton img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; display: block; }
 .gambar-baris label.btn { display: inline-flex; align-items: center; }
 .imbas-isi .aksi-bawah label.btn { display: flex; align-items: center; justify-content: center; }
+
+/* Kotak gambar boleh diketik */
+label.pratonton-gambar { cursor: pointer; position: relative; border: 2px dashed var(--garis); }
+label.pratonton-gambar:hover { border-color: var(--utama); }
+.pg-isi { display: contents; }
+.pg-kosong { display: grid; justify-items: center; gap: 8px; padding: 24px 12px; color: var(--dakwat-2); text-align: center; }
+.pg-kosong svg { width: 40px; height: 40px; fill: none; stroke: var(--utama); stroke-width: 1.6; stroke-linejoin: round; }
+.pg-kosong b { font-weight: 600; color: var(--dakwat); }
+.pg-tukar {
+  position: absolute;
+  right: 8px; bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+[data-ada-gambar] { margin-bottom: 12px; }

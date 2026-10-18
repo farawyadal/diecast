@@ -2252,14 +2252,20 @@
     borang({
       tajuk: 'Gambar item',
       nota: esc(labelItem(it)),
-      html: '<div class="pratonton-gambar" id="pratonton">' + (it.gambar ? '<img src="' + esc(it.gambar) + '" alt="">' : '<span>Tiada gambar</span>') + '</div>' +
+      html: '<label class="pratonton-gambar" id="pratonton"><input type="file" accept="image/*" name="fail" hidden><span class="pg-isi"></span></label>' +
         '<input type="hidden" name="gambar" value="' + esc(it.gambar) + '">' +
-        '<div class="baris-btn"><label class="btn"><input type="file" accept="image/*" name="fail" hidden>Pilih / ambil gambar</label>' +
-        (it.gambar ? '<button type="button" class="btn bahaya" data-buang-gambar="1">Buang gambar</button>' : '') + '</div>' +
+        '<div class="baris-btn" data-ada-gambar' + (it.gambar ? '' : ' hidden') + '><button type="button" class="btn bahaya kecil" data-buang-gambar="1">Buang gambar</button></div>' +
         medanTeks('pautan', 'Atau tampal pautan gambar', /^https?:/.test(it.gambar) ? it.gambar : '', ' type="url" inputmode="url" placeholder="https://…"') +
         (sama.length ? '<label class="tanda"><input type="checkbox" name="semua" checked> Guna juga untuk ' + sama.length + ' item lain bernama sama</label>' : ''),
       lepas: (f) => {
-        const tunjuk = (src) => { f.querySelector('#pratonton').innerHTML = src ? '<img src="' + esc(src) + '" alt="">' : '<span>Tiada gambar</span>'; };
+        const IKON_KAMERA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+        const tunjuk = (src) => {
+          f.querySelector('#pratonton .pg-isi').innerHTML = src
+            ? '<img src="' + esc(src) + '" alt=""><span class="pg-tukar">Ketik untuk tukar</span>'
+            : '<span class="pg-kosong">' + IKON_KAMERA + '<b>Ketik untuk pilih / ambil gambar</b></span>';
+          f.querySelector('[data-ada-gambar]').hidden = !src;
+        };
+        tunjuk(it.gambar);
         f.fail.addEventListener('change', async () => {
           const fail = f.fail.files && f.fail.files[0];
           if (!fail) return;
