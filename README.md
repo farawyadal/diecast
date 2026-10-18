@@ -22,6 +22,10 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 
 **Pautan tracking:** dalam garis masa item ada pautan *Jejak FedEx / USPS / Skynet / J&T*. FedEx dan USPS terus buka status; Skynet dan J&T buka laman tracking dan nombor disalin untuk ditampal.
 
+**Imbas barcode J&T:** butang *Imbas barcode* di bawah medan Tracking J&T (borang Hantar). Guna kamera telefon.
+
+**Gambar item:** buka item > *+ Gambar item*. Pilih / ambil gambar (dikecilkan sendiri) atau tampal pautan gambar. Boleh guna untuk semua item bernama sama.
+
 **Leret kad:** ke kanan = rekod bayaran penuh (apps tanya dulu); ke kiri = barang dah diserah, masuk Arkib (ada **Buat asal**).
 
 Ikon di atas: **Senarai order CM**, **Arkib**, dan **Pelanggan** (baki setiap pelanggan; dari situ boleh **Tukar nama / gabung** dua nama yang sebenarnya orang sama).

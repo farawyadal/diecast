@@ -166,7 +166,8 @@
       hantarId: x.hantarId ? String(x.hantarId) : null,
       arkib: masaAtauNull(x.arkib),
       lama: !!x.lama,
-      anggaran: !!x.anggaran,                     // kos RM ialah anggaran (item lama tanpa rekod order)                             // dari Excel: OTW tanpa butiran perjalanan
+      anggaran: !!x.anggaran,
+      gambar: String(x.gambar || '').slice(0, 300000), // pautan gambar atau gambar kecil (data URL)                     // kos RM ialah anggaran (item lama tanpa rekod order)                             // dari Excel: OTW tanpa butiran perjalanan
     };
   }
 
@@ -610,7 +611,8 @@
     const bolehLeret = !it.arkib;
     return '<div class="kad-bungkus"' + (bolehLeret ? ' data-leret="' + esc(it.id) + '"' : '') + '>' +
       (bolehLeret ? '<div class="leret-latar" aria-hidden="true"><span class="l-kanan">✓ Bayar penuh</span><span class="l-kiri">Selesai · arkib ✓</span></div>' : '') +
-      '<button type="button" class="kad st-' + (aku ? 'aku' : st) + '" data-id="' + esc(it.id) + '">' +
+      '<button type="button" class="kad st-' + (aku ? 'aku' : st) + (it.gambar ? ' ada-gambar' : '') + '" data-id="' + esc(it.id) + '">' +
+      (it.gambar ? '<img class="kad-gambar" src="' + esc(it.gambar) + '" alt="" loading="lazy" draggable="false">' : '') +
       '<div class="kad-atas"><div class="kad-nama">' +
       (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') + esc(it.nama) +
       (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</div>' + pil + '</div>' +
@@ -701,7 +703,7 @@
       (o.aksi && o.aksi.length ? '<div class="kump-aksi">' + o.aksi.map((a) =>
         '<button type="button" class="btn kecil' + (a.kelas ? ' ' + a.kelas : '') + '" data-g="' + esc(a.g) + '"' +
         (a.nilai ? ' data-v="' + esc(a.nilai) + '"' : '') + '>' + a.label + '</button>').join('') + '</div>' : '') +
-      '</div>' + kad + '</section>';
+      '</div>' + (o.jejak && o.jejak.no ? '<div class="kump-jejak">' + htmlNoJejak(o.jejak.no, o.jejak.jenis) + '</div>' : '') + kad + '</section>';
   }
 
   function ikutOrang(senarai) {
@@ -767,6 +769,7 @@
           buka: 'kotak:' + k.id,
           items: its,
           kad: { orang: true, peringkat: false, undur: true },
+          jejak: k.trackMY ? { no: k.trackMY, jenis: 'skynet' } : null,
           aksi: [k.tPost ? { g: 'sampaiMY', nilai: k.id, label: 'Tiba di Malaysia', kelas: 'utama' } : { g: 'skynet', nilai: k.id, label: 'Tracking Skynet', kelas: 'utama' }],
         });
       });
@@ -794,6 +797,7 @@
           sub: trk === '\u0000lama' ? 'Tiada butiran perjalanan · masukkan ke kotak apabila diketahui' :
             'Ship ' + tarikh(tMin) + ' · ' + bilHari(tMin) + ' hari' + (its.some((it) => !it.tDeclare) ? ' · <span class="tag-amaran">Belum declare</span>' : ''),
           items: its, kad: { orang: true, peringkat: false, undur: true },
+          jejak: trk && trk !== '\u0000lama' ? { no: trk, jenis: 'us' } : null,
           aksi: [{ g: 'undur', nilai: its.map((it) => it.id).join(','), label: 'Pulangkan' }, { g: 'hub', nilai: its.map((it) => it.id).join(','), label: 'Tiba di gudang' }],
         });
       });
@@ -824,10 +828,11 @@
           const bk = bakiPositif(its);
           html += htmlKumpulan({
             tajuk: h.orang,
-            sub: (h.cara === 'pos' ? 'J&T' + (h.track ? ' ' + esc(h.track) : '') : 'Hantar sendiri') + ' · ' + tarikh(h.t) +
+            sub: (h.cara === 'pos' ? 'J&T' : 'Hantar sendiri') + ' · ' + tarikh(h.t) +
               (bk > 0 ? ' · baki <b>' + rm(bk) + '</b>' : ''),
             buka: 'hantar:' + h.id,
             items: its, kad: { peringkat: false, undur: true, orang: new Set(its.map((it) => kunciOrang(it.orang))).size > 1 },
+            jejak: h.cara === 'pos' && h.track ? { no: h.track, jenis: 'jnt' } : null,
             aksi: [{ g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
           });
         });
@@ -864,6 +869,9 @@
 
   $('senarai').addEventListener('click', (e) => {
     if (abaikanKlik) { abaikanKlik = false; return; }
+    const sal = e.target.closest('[data-salin]');
+    if (sal) { salin(sal.dataset.salin); return; }
+    if (e.target.closest('a.no-jejak')) return;
     const u = e.target.closest('[data-undur]');
     if (u) {
       const it = cariItem(u.dataset.undur);
@@ -1793,6 +1801,14 @@
       'Jejak ' + esc(j.nama) + ' ↗</a>';
   }
 
+  // Nombor tracking sebagai pautan, dengan butang salin di sebelah.
+  function htmlNoJejak(no, jenis) {
+    const pautan = jenis === 'us' && !kurierUS(no) ? [urlJejak(no, 'fedex'), urlJejak(no, 'usps')] : [urlJejak(no, jenis)];
+    return pautan.map((j, i) => '<a class="no-jejak" href="' + esc(j.url) + '" target="_blank" rel="noopener" data-jejak-salin="' + (j.salin ? esc(no) : '') +
+      '" data-kurier="' + esc(j.nama) + '">' + (i === 0 ? esc(j.nama) + ' ' + esc(no) : esc(j.nama)) + ' ↗</a>').join(' · ') +
+      '<button type="button" class="buang" data-salin="' + esc(no) + '" aria-label="Salin ' + esc(no) + '">' + IKON_SALIN + '</button>';
+  }
+
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-jejak-salin]');
     if (!a || !a.dataset.jejakSalin) return;
@@ -1872,7 +1888,7 @@
         '<label><input type="radio" name="cara" value="pos" checked><span>Post J&amp;T</span></label>' +
         '<label><input type="radio" name="cara" value="sendiri"><span>Hantar sendiri</span></label></fieldset>' +
         '<div data-pos><div class="dua">' + medanTeks('track', 'Tracking J&amp;T', '', ' maxlength="60" data-fokus') +
-        medanNombor('kos', 'Kos J&amp;T (RM) <small>(ditanggung sendiri)</small>', '') + '</div></div>' +
+        medanNombor('kos', 'Kos J&amp;T (RM) <small>(ditanggung sendiri)</small>', '') + '</div>' + butangImbas('track') + '</div>' +
         medanTarikh('t', 'Tarikh', Date.now(), true) +
         '<h3>Item ' + esc(nama) + '</h3>' + senaraiPilih('item', pilihanItem(calon, pilih)) +
         (lain.length ? '<h3>Pelanggan lain, alamat sama? <small>(pilihan)</small></h3><p class="nota">Tanda item pelanggan lain yang dihantar dalam bungkusan yang sama.</p>' +
@@ -1911,6 +1927,7 @@
         '<label><input type="radio" name="cara" value="pos"' + (h.cara === 'pos' ? ' checked' : '') + '><span>Post J&amp;T</span></label>' +
         '<label><input type="radio" name="cara" value="sendiri"' + (h.cara === 'sendiri' ? ' checked' : '') + '><span>Hantar sendiri</span></label></fieldset>' +
         '<div class="dua">' + medanTeks('track', 'Tracking J&amp;T', h.track, ' maxlength="60"') + medanNombor('kos', 'Kos J&amp;T (RM)', h.kos === null ? '' : h.kos) + '</div>' +
+        butangImbas('track') +
         medanTarikh('t', 'Tarikh', h.t, true) +
         '<label class="tanda"><input type="checkbox" name="batal"> Batalkan hantaran ini (item kembali ke Tiba)</label>',
       hantar(f) {
@@ -2000,7 +2017,10 @@
     const k = it.kotakId ? cariKotak(it.kotakId) : null;
     const hh = it.hantarId ? cariHantar(it.hantarId) : null;
 
-    let html = '<div class="butir-kepala"><h2>' + (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') +
+    let html = (it.gambar
+      ? '<button type="button" class="butir-gambar" data-aksi="gambar"><img src="' + esc(it.gambar) + '" alt="' + esc(labelItem(it)) + '"></button>'
+      : '<button type="button" class="tambah-gambar" data-aksi="gambar">+ Gambar item</button>') +
+      '<div class="butir-kepala"><h2>' + (it.jenis ? '<span class="jenis">' + esc(it.jenis) + '</span>' : '') +
       esc(it.nama) + (it.qty > 1 ? ' <span class="qty">×' + it.qty + '</span>' : '') + '</h2>' +
       (aku ? '<span class="pil st-aku">Sendiri</span>' : '<span class="pil st-' + st + '">' + STATUS[st] + '</span>') + '</div>';
     html += '<p class="butir-sub">' + (aku ? 'Barang sendiri' : esc(luar ? 'Penjual: ' : 'Pelanggan: ') + '<b>' + esc(it.orang || '-') + '</b>') +
@@ -2080,6 +2100,7 @@
     else if (a === 'bayar') bukaBayar(it);
     else if (a === 'edit') borangItem(it);
     else if (a === 'perjalanan') borangPerjalanan(it);
+    else if (a === 'gambar') borangGambar(it);
     else if (a === 'undur') {
       const p = peringkat(it);
       ubah(() => {
@@ -2172,6 +2193,171 @@
       },
     });
   }
+
+  /* ---------- Gambar item ---------- */
+
+  // Kecilkan gambar (sisi terpanjang 480px, JPEG) supaya data kecil dan laju diselaras.
+  function kecilkanGambar(fail) {
+    return new Promise((ok, gagal) => {
+      const url = URL.createObjectURL(fail);
+      const img = new Image();
+      img.onload = () => {
+        const max = 480;
+        const skala = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * skala);
+        c.height = Math.round(img.naturalHeight * skala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        ok(c.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error('gambar')); };
+      img.src = url;
+    });
+  }
+
+  function borangGambar(it) {
+    const sama = data.items.filter((x) => x !== it && kunciOrang(x.jenis + ' ' + x.nama) === kunciOrang(it.jenis + ' ' + it.nama) && !x.gambar);
+    borang({
+      tajuk: 'Gambar item',
+      nota: esc(labelItem(it)),
+      html: '<div class="pratonton-gambar" id="pratonton">' + (it.gambar ? '<img src="' + esc(it.gambar) + '" alt="">' : '<span>Tiada gambar</span>') + '</div>' +
+        '<input type="hidden" name="gambar" value="' + esc(it.gambar) + '">' +
+        '<div class="baris-btn"><label class="btn"><input type="file" accept="image/*" name="fail" hidden>Pilih / ambil gambar</label>' +
+        (it.gambar ? '<button type="button" class="btn bahaya" data-buang-gambar="1">Buang gambar</button>' : '') + '</div>' +
+        medanTeks('pautan', 'Atau tampal pautan gambar', /^https?:/.test(it.gambar) ? it.gambar : '', ' type="url" inputmode="url" placeholder="https://…"') +
+        (sama.length ? '<label class="tanda"><input type="checkbox" name="semua" checked> Guna juga untuk ' + sama.length + ' item lain bernama sama</label>' : ''),
+      lepas: (f) => {
+        const tunjuk = (src) => { f.querySelector('#pratonton').innerHTML = src ? '<img src="' + esc(src) + '" alt="">' : '<span>Tiada gambar</span>'; };
+        f.fail.addEventListener('change', async () => {
+          const fail = f.fail.files && f.fail.files[0];
+          if (!fail) return;
+          try { f.gambar.value = await kecilkanGambar(fail); f.pautan.value = ''; tunjuk(f.gambar.value); }
+          catch (e) { toast('Gambar tidak dapat dibaca.'); }
+        });
+        f.pautan.addEventListener('change', () => { const v = f.pautan.value.trim(); f.gambar.value = v; tunjuk(v); });
+        const bg = f.querySelector('[data-buang-gambar]');
+        if (bg) bg.addEventListener('click', () => { f.gambar.value = ''; f.pautan.value = ''; tunjuk(''); });
+      },
+      hantar(f) {
+        const v = f.pautan.value.trim() || f.gambar.value;
+        if (v && !/^(https?:|data:image\/)/.test(v)) return 'Pautan gambar mesti bermula dengan https://';
+        ubah(() => {
+          it.gambar = v;
+          if (v && f.semua && f.semua.checked) sama.forEach((x) => { x.gambar = v; });
+        }, v ? 'Gambar disimpan.' : 'Gambar dibuang.');
+        return '';
+      },
+    });
+  }
+
+  /* ---------- Imbas barcode (tracking J&T) ---------- */
+
+  // Guna BarcodeDetector (Chrome/Android) kalau ada; kalau tiada, muat ZXing dari CDN.
+  let zxingJanji = null;
+  function muatZxing() {
+    if (window.ZXing) return Promise.resolve();
+    if (!zxingJanji) {
+      zxingJanji = new Promise((ok, gagal) => {
+        const sk = document.createElement('script');
+        sk.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+        sk.onload = () => ok();
+        sk.onerror = () => { zxingJanji = null; gagal(new Error('zxing')); };
+        document.head.appendChild(sk);
+      });
+    }
+    return zxingJanji;
+  }
+
+  const sesuaiTracking = (v) => /^[A-Z]{0,3}\d{10,18}$/i.test(v);
+
+  function imbas() {
+    return new Promise((selesai) => {
+      const dlg = $('dlgImbas');
+      const video = $('imbasVideo');
+      const status = $('imbasStatus');
+      const calon = $('imbasCalon');
+      let strim = null;
+      let pembaca = null;
+      let habis = false;
+      let pemasa = null;
+      calon.innerHTML = '';
+      status.textContent = 'Menghidupkan kamera…';
+      const dijumpai = new Set();
+      const tamat = (nilai) => {
+        if (habis) return;
+        habis = true;
+        clearTimeout(pemasa);
+        try { if (pembaca) pembaca.reset(); } catch (e) { /* tak penting */ }
+        if (strim) strim.getTracks().forEach((t) => t.stop());
+        video.srcObject = null;
+        if (dlg.open) dlg.close();
+        if (nilai && navigator.vibrate) navigator.vibrate(60);
+        selesai(nilai || null);
+      };
+      const terima = (v) => {
+        v = String(v || '').trim();
+        if (!v || habis) return;
+        if (sesuaiTracking(v)) { tamat(v); return; }
+        if (dijumpai.has(v)) return;
+        dijumpai.add(v);
+        calon.insertAdjacentHTML('beforeend', '<button type="button" class="btn kecil" data-guna="' + esc(v) + '">Guna ' + esc(v) + '</button>');
+      };
+      calon.onclick = (e) => { const b = e.target.closest('[data-guna]'); if (b) tamat(b.dataset.guna); };
+      $('imbasBatal').onclick = () => tamat(null);
+      dlg.onclose = () => tamat(null);
+      dlg.showModal();
+
+      (async () => {
+        try {
+          if ('BarcodeDetector' in window) {
+            const ada = await window.BarcodeDetector.getSupportedFormats();
+            const mahu = ['code_128', 'code_39', 'code_93', 'codabar', 'itf', 'ean_13', 'qr_code'].filter((x) => ada.includes(x));
+            const pengesan = new window.BarcodeDetector({ formats: mahu });
+            strim = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            if (habis) { strim.getTracks().forEach((t) => t.stop()); return; }
+            video.srcObject = strim;
+            await video.play();
+            status.textContent = 'Halakan kamera pada barcode J&T.';
+            const ulang = async () => {
+              if (habis) return;
+              try {
+                const hasil = await pengesan.detect(video);
+                hasil.forEach((h) => terima(h.rawValue));
+              } catch (e) { /* bingkai belum sedia */ }
+              pemasa = setTimeout(ulang, 180);
+            };
+            ulang();
+          } else {
+            await muatZxing();
+            if (habis) return;
+            pembaca = new window.ZXing.BrowserMultiFormatReader();
+            status.textContent = 'Halakan kamera pada barcode J&T.';
+            await pembaca.decodeFromConstraints({ video: { facingMode: 'environment' } }, video, (res) => { if (res) terima(res.getText()); });
+          }
+        } catch (e) {
+          status.textContent = e && e.name === 'NotAllowedError'
+            ? 'Akses kamera ditolak. Benarkan kamera untuk laman ini dalam tetapan browser.'
+            : 'Kamera atau pengimbas tidak dapat dibuka. Taip nombor tracking sendiri.';
+        }
+      })();
+    });
+  }
+
+  function butangImbas(namaMedan) {
+    return '<button type="button" class="btn kecil btn-imbas" data-imbas="' + namaMedan + '">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>Imbas barcode</button>';
+  }
+  $('formX').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-imbas]');
+    if (!b) return;
+    const nilai = await imbas();
+    if (nilai) {
+      const medan = $('formX').querySelector('[name="' + b.dataset.imbas + '"]');
+      if (medan) { medan.value = nilai; medan.dispatchEvent(new Event('input', { bubbles: true })); }
+      toast('Tracking ' + nilai + ' diimbas.');
+    }
+  });
 
   /* ---------- Item: tambah / edit ---------- */
 
@@ -2635,7 +2821,7 @@
     const label = LABEL_STATUS[s] || '';
     b.setAttribute('aria-label', label);
     b.title = label;
-    $('selarasTeks').textContent = s === 'perlu' || s === 'gagal' ? label : '';
+    $('selarasTeks').textContent = '';
     if ($('dlgMenu').open) paparTetapanSelaras();
   }
 
