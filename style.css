@@ -1379,3 +1379,9 @@ dialog.imbas {
 }
 .imbas-isi .nota, .imbas-isi .baris-btn, .imbas-isi .aksi-bawah { margin-left: 14px; margin-right: 14px; }
 .imbas-isi .nota { margin-top: 10px; }
+
+.gambar-baris { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; }
+.gb-pratonton:empty { display: none; }
+.gb-pratonton img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; display: block; }
+.gambar-baris label.btn { display: inline-flex; align-items: center; }
+.imbas-isi .aksi-bawah label.btn { display: flex; align-items: center; justify-content: center; }

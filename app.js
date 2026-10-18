@@ -1036,6 +1036,7 @@
         '<label class="medan">Pelanggan <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label></div>' +
         '<div class="dua"><label class="medan">Harga jual (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.harga == null ? '' : b.harga) + '"></label>' +
         '<label class="medan">Telah dibayar (RM) <small>(pilihan)</small><input name="bayar" type="number" inputmode="decimal" min="0" step="0.01" value=""></label></div>' +
+        htmlGambarBaris(b.gambar) +
         '<div class="baris-btn"><button type="button" class="btn kecil" data-baris="salin">Salin baris</button>' +
         '<button type="button" class="btn kecil bahaya" data-baris="buang">Buang</button></div></div>';
     }
@@ -1046,14 +1047,44 @@
       '<label class="medan"><span data-label-beli>Harga beli seunit (US$)</span><input name="beli" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.beli == null ? '' : b.beli) + '"></label></div>' +
       '<div class="dua"><label class="medan">Pelanggan <small>(AKU = sendiri)</small><input name="orang" list="senaraiOrang" maxlength="60" value="' + esc(b.orang || '') + '"></label>' +
       '<label class="medan">Harga jual (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(b.harga == null ? '' : b.harga) + '"></label></div>' +
+      htmlGambarBaris(b.gambar) +
       '<div class="baris-btn"><button type="button" class="btn kecil" data-baris="salin">Salin baris</button>' +
       '<button type="button" class="btn kecil bahaya" data-baris="buang">Buang</button></div></div>';
   }
 
   function bacaBaris(el) {
     const q = (n) => { const x = el.querySelector('[name="' + n + '"]'); return x ? x.value : ''; };
-    return { jenis: q('jenis'), nama: q('nama').trim(), qty: q('qty'), beli: q('beli'), orang: q('orang').trim(), harga: q('harga'), bayar: q('bayar') };
+    return { jenis: q('jenis'), nama: q('nama').trim(), qty: q('qty'), beli: q('beli'), orang: q('orang').trim(), harga: q('harga'), bayar: q('bayar'), gambar: q('gambar') };
   }
+
+  // Gambar dalam baris tempahan / order: pilih dari galeri / kamera, atau tampal pautan.
+  function htmlGambarBaris(gambar) {
+    return '<div class="gambar-baris"><span class="gb-pratonton">' + (gambar ? '<img src="' + esc(gambar) + '" alt="">' : '') + '</span>' +
+      '<input type="hidden" name="gambar" value="' + esc(gambar || '') + '">' +
+      '<label class="btn kecil"><input type="file" accept="image/*" data-gambar-fail hidden>' + (gambar ? 'Tukar gambar' : '+ Gambar') + '</label>' +
+      '<button type="button" class="btn kecil" data-gambar-pautan>Pautan</button>' +
+      (gambar ? '<button type="button" class="btn kecil bahaya" data-gambar-buang>Buang</button>' : '') + '</div>';
+  }
+  function setGambarBaris(baris, v) {
+    baris.querySelector('.gambar-baris').outerHTML = htmlGambarBaris(v);
+  }
+  $('formX').addEventListener('change', async (e) => {
+    if (!e.target.matches('[data-gambar-fail]')) return;
+    const fail = e.target.files && e.target.files[0];
+    const baris = e.target.closest('.baris-order');
+    if (!fail || !baris) return;
+    try { setGambarBaris(baris, await kecilkanGambar(fail)); } catch (err) { toast('Gambar tidak dapat dibaca.'); }
+  });
+  $('formX').addEventListener('click', (e) => {
+    const baris = e.target.closest('.baris-order');
+    if (!baris) return;
+    if (e.target.closest('[data-gambar-buang]')) setGambarBaris(baris, '');
+    else if (e.target.closest('[data-gambar-pautan]')) {
+      const v = (window.prompt('Tampal pautan gambar (https://…)', '') || '').trim();
+      if (v && /^https?:\/\//.test(v)) setGambarBaris(baris, v);
+      else if (v) toast('Pautan gambar mesti bermula dengan https://');
+    }
+  });
 
   /* ---------- Tag item tempahan pada order ---------- */
 
@@ -1259,7 +1290,7 @@
             const bayar = bulat(x.bayar);
             data.items.push(bersihItem({
               kat: aku ? 'aku' : 'jual', jenis: x.jenis, nama: x.nama, qty: x.qty, orang: x.orang, tel: aku ? '' : telUntuk(x.orang),
-              harga: aku ? 0 : x.harga, dibuat: Date.now(), urutan: Date.now() + i,
+              harga: aku ? 0 : x.harga, gambar: x.gambar, dibuat: Date.now(), urutan: Date.now() + i,
               bayaran: bayar && !aku ? [{ amaun: bayar, t: Date.now(), nota: 'Bayaran awal' }] : [],
             }));
           });
@@ -1314,7 +1345,7 @@
             const aku = kunciOrang(x.orang) === AKU;
             data.items.push(bersihItem({
               kat: aku ? 'aku' : 'jual', jenis: x.jenis, nama: x.nama, qty: x.qty, orang: x.orang, tel: aku ? '' : telUntuk(x.orang),
-              harga: aku ? 0 : x.harga, beli: x.beli, orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
+              harga: aku ? 0 : x.harga, beli: x.beli, gambar: x.gambar, orderId: o.id, dibuat: Date.now(), urutan: Date.now() + i,
             }));
           });
           if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
@@ -2271,6 +2302,28 @@
 
   const sesuaiTracking = (v) => /^[A-Z]{0,3}\d{10,18}$/i.test(v);
 
+  // Baca barcode dari gambar (contoh: screenshot label J&T dalam galeri).
+  async function bacaBarcodeGambar(fail) {
+    const hasil = [];
+    if ('BarcodeDetector' in window) {
+      try {
+        const ada = await window.BarcodeDetector.getSupportedFormats();
+        const pengesan = new window.BarcodeDetector({ formats: ['code_128', 'code_39', 'code_93', 'codabar', 'itf', 'ean_13', 'qr_code'].filter((x) => ada.includes(x)) });
+        const bmp = await createImageBitmap(fail);
+        (await pengesan.detect(bmp)).forEach((h) => hasil.push(h.rawValue));
+      } catch (e) { /* cuba ZXing */ }
+    }
+    if (!hasil.length) {
+      await muatZxing();
+      const url = URL.createObjectURL(fail);
+      try {
+        const r = await new window.ZXing.BrowserMultiFormatReader().decodeFromImageUrl(url);
+        if (r) hasil.push(r.getText());
+      } catch (e) { /* tiada barcode dijumpai */ } finally { URL.revokeObjectURL(url); }
+    }
+    return hasil;
+  }
+
   function imbas() {
     return new Promise((selesai) => {
       const dlg = $('dlgImbas');
@@ -2305,6 +2358,18 @@
       };
       calon.onclick = (e) => { const b = e.target.closest('[data-guna]'); if (b) tamat(b.dataset.guna); };
       $('imbasBatal').onclick = () => tamat(null);
+      $('imbasFail').value = '';
+      $('imbasFail').onchange = async () => {
+        const fail = $('imbasFail').files && $('imbasFail').files[0];
+        if (!fail) return;
+        status.textContent = 'Membaca gambar…';
+        try {
+          const hasil = await bacaBarcodeGambar(fail);
+          if (!hasil.length) { status.textContent = 'Tiada barcode dijumpai dalam gambar. Cuba gambar yang lebih jelas atau potong pada barcode.'; return; }
+          hasil.forEach(terima);
+          if (!habis) status.textContent = 'Pilih nombor tracking yang betul.';
+        } catch (e) { status.textContent = 'Gambar tidak dapat dibaca.'; }
+      };
       dlg.onclose = () => tamat(null);
       dlg.showModal();
 
