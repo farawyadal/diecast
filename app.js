@@ -785,6 +785,71 @@
       const h = it.hantarId ? cariHantar(it.hantarId) : null;
       if (h && itemHantar(h).every((x) => x.arkib)) h.tTerima = it.arkib;
     }, labelItem(it) + (baki(it) > 0 ? ' diarkib (masih baki ' + rm(baki(it)) + ').' : ' diarkib.'));
+    bungaApi();
+  }
+
+  // Bunga api bila barang selesai diterima. Tidak dimainkan kalau peranti minta kurangkan animasi.
+  function bungaApi() {
+    try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) { /* abai */ }
+    const c = document.createElement('canvas');
+    c.className = 'bunga-api';
+    c.setAttribute('aria-hidden', 'true');
+    // Dialog yang terbuka berada di lapisan atas; letak di dalamnya supaya tetap nampak.
+    ([...document.querySelectorAll('dialog[open]')].pop() || document.body).appendChild(c);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth, H = window.innerHeight;
+    c.width = W * dpr; c.height = H * dpr;
+    const x = c.getContext('2d');
+    x.scale(dpr, dpr);
+    const WARNA = ['#FF5A5F', '#FFC93C', '#3DDC97', '#4EA8FF', '#B47CFF', '#FF8FD1', '#FFFFFF'];
+    const roket = [], zarah = [];
+    const LETUP = 5;
+    for (let i = 0; i < LETUP; i++) {
+      roket.push({
+        x: W * (0.15 + 0.7 * Math.random()), y: H + 10, tx: H * (0.15 + 0.3 * Math.random()),
+        v: 9 + Math.random() * 3, mula: i * 260 + Math.random() * 120, warna: WARNA[i % (WARNA.length - 1)],
+      });
+    }
+    const t0 = performance.now();
+    let akhir = t0;
+    function letup(r) {
+      const n = 70;
+      for (let i = 0; i < n; i++) {
+        const sudut = (Math.PI * 2 * i) / n + Math.random() * 0.2;
+        const laju = 2 + Math.random() * 4.5;
+        zarah.push({ x: r.x, y: r.y, vx: Math.cos(sudut) * laju, vy: Math.sin(sudut) * laju, hayat: 1, warna: Math.random() < 0.75 ? r.warna : WARNA[Math.floor(Math.random() * WARNA.length)] });
+      }
+    }
+    function bingkai(t) {
+      const dt = Math.min(2, (t - akhir) / 16.7);
+      akhir = t;
+      x.globalCompositeOperation = 'destination-out';
+      x.fillStyle = 'rgba(0,0,0,0.25)';
+      x.fillRect(0, 0, W, H);
+      x.globalCompositeOperation = 'lighter';
+      roket.forEach((r) => {
+        if (r.siap || t - t0 < r.mula) return;
+        r.y -= r.v * dt;
+        x.fillStyle = r.warna;
+        x.beginPath(); x.arc(r.x, r.y, 2.5, 0, Math.PI * 2); x.fill();
+        if (r.y <= r.tx) { r.siap = true; letup(r); }
+      });
+      for (let i = zarah.length - 1; i >= 0; i--) {
+        const z = zarah[i];
+        z.vx *= 0.985; z.vy = z.vy * 0.985 + 0.06 * dt;
+        z.x += z.vx * dt; z.y += z.vy * dt;
+        z.hayat -= 0.012 * dt;
+        if (z.hayat <= 0) { zarah.splice(i, 1); continue; }
+        x.globalAlpha = Math.max(0, z.hayat);
+        x.fillStyle = z.warna;
+        x.beginPath(); x.arc(z.x, z.y, 2.2, 0, Math.PI * 2); x.fill();
+      }
+      x.globalAlpha = 1;
+      if (roket.every((r) => r.siap) && !zarah.length) { c.remove(); return; }
+      if (t - t0 > 6000) { c.remove(); return; }
+      requestAnimationFrame(bingkai);
+    }
+    requestAnimationFrame(bingkai);
   }
 
   // Kumpulan dalam senarai: kepala (boleh diketuk) + butang aksi + kad item.
@@ -1065,7 +1130,7 @@
     else if (g === 'sampaiMY') borangSampai(cariKotak(v));
     else if (g === 'waBaki') { const its = itemTab('sampai').filter((it) => kunciOrang(it.orang) === v); waBaki(its); }
     else if (g === 'serah') borangSerah(v);
-    else if (g === 'ambil') ubah(() => { v.split(',').forEach((id) => { const it = cariItem(id); if (it) it.arkib = Date.now(); }); }, 'Barang sendiri diarkibkan.');
+    else if (g === 'ambil') { ubah(() => { v.split(',').forEach((id) => { const it = cariItem(id); if (it) it.arkib = Date.now(); }); }, 'Barang sendiri diarkibkan.'); bungaApi(); }
     else if (g === 'waHantar') waHantar(cariHantar(v));
     else if (g === 'terima') terimaHantar(cariHantar(v));
   }
@@ -2147,6 +2212,7 @@
       h.tTerima = Date.now();
       itemHantar(h).forEach((it) => { it.arkib = h.tTerima; });
     }, h.orang + ' sahkan terima. Item dipindah ke Arkib.');
+    bungaApi();
   }
 
   /* ---------- Item: butiran ---------- */
@@ -2318,7 +2384,7 @@
     else if (a === 'kotak') pilihKotak(it);
     else if (a === 'serah') borangSerah(kunciOrang(it.orang), [it.id]);
     else if (a === 'terima') terimaHantar(cariHantar(it.hantarId));
-    else if (a === 'ambil') ubah(() => { it.arkib = Date.now(); }, labelItem(it) + ' diarkibkan.');
+    else if (a === 'ambil') { ubah(() => { it.arkib = Date.now(); }, labelItem(it) + ' diarkibkan.'); bungaApi(); }
     else if (a === 'pulih') {
       ubah(() => {
         it.arkib = null;
