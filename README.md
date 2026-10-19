@@ -34,6 +34,8 @@ Ikon di atas: **Senarai order CM**, **Arkib**, dan **Pelanggan** (baki setiap pe
 
 Tiga titik > **Sale akan datang** > **+ Sale baru**: isi item, tarikh dan masa. Masa boleh dimasukkan dalam waktu Malaysia, Pasifik US (PT) atau Timur US (ET); apps tukar sendiri ke waktu Malaysia (termasuk waktu musim panas US). Banner muncul di atas senarai bila sale tinggal kurang 24 jam. **Buat tempahan** terus dari sale.
 
+**Sale untuk tempahan:** dalam tab Tempahan, kumpulan *Belum dibeli* ada butang **Sale** (muncul bila ada tempahan belum dibeli yang belum ada sale). Tempahan bernama sama digabung. Tarikh diisi sendiri: **RLC** Selasa seterusnya, **Elite / MB** Khamis seterusnya, 9:00 pagi PT (12 tengah malam waktu Malaysia, atau 1 pagi bila US tukar ke waktu musim sejuk). Jenis lain: isi tarikh sendiri (masa lalai 9:00 pagi PT). Item tanpa jenis boleh dipilih jenisnya di situ; jenis itu disimpan pada tempahan. Kad tempahan menunjukkan masa sale.
+
 **Tambah ke kalendar** cipta acara dalam Google Calendar dengan peringatan 30 dan 15 minit sebelum sale, jadi telefon berbunyi walaupun apps ditutup. Kali pertama, Google minta kebenaran kalendar. Edit sale = acara dikemas kini; padam sale = acara dipadam. Perlu **Google Calendar API** diaktifkan dalam projek Google Cloud yang sama dengan Client ID (APIs & Services > Library > Google Calendar API > Enable).
 
 ## Bahasa

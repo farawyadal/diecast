@@ -303,6 +303,7 @@
       pautan: /^https?:\/\//.test(x.pautan || '') ? String(x.pautan).slice(0, 500) : '',
       catatan: String(x.catatan || '').slice(0, 500),
       eventId: String(x.eventId || '').slice(0, 200),
+      kunci: kunciOrang(x.kunci || ((x.jenis || '') + ' ' + x.nama)), // padankan dengan item tempahan bernama sama
       dibuat: Number(x.dibuat) || Date.now(),
     };
   }
@@ -663,6 +664,8 @@
     let bawah = opt.peringkat === false ? '' : barisPeringkat(it);
     const pk = peringkat(it);
     const bolehUndur = opt.undur && ['ship', 'hub', 'keHK', 'hk', 'kotak', 'post', 'sampai', 'hantar'].includes(pk);
+    const sl = !it.orderId && !it.arkib ? saleUntuk(it) : null;
+    if (sl) bawah += '<div class="kad-sale">Sale ' + esc(masaZon(sl.t, 'MY')) + '</div>';
     if (it.arkib) bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + '</div>';
     else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
     const bolehLeret = !it.arkib;
@@ -841,7 +844,8 @@
           buka: o ? 'order:' + o.id : '',
           items: its,
           kad: { orang: true, peringkat: false },
-          aksi: [o ? { g: 'declare', nilai: k, label: 'Declare' } : { g: 'orderCM', nilai: '-', label: 'Order CM', kelas: 'utama' }],
+          aksi: o ? [{ g: 'declare', nilai: k, label: 'Declare' }]
+            : (itemTanpaSale().length ? [{ g: 'sale', nilai: '-', label: 'Sale' }] : []).concat({ g: 'orderCM', nilai: '-', label: 'Order CM', kelas: 'utama' }),
         });
       });
     } else if (tab === 'otw') {
@@ -1017,6 +1021,7 @@
     else if (g === 'hk') borangTanda(v.split(','), 'tHK', 'Tiba di hub', 'tiba di hub. Boleh consolidate.');
     else if (g === 'undur') borangUndur(v.split(','));
     else if (g === 'orderCM') borangOrderBaru([]);
+    else if (g === 'sale') borangSaleTempahan();
     else if (g === 'senaraiOrder') bukaSenaraiOrder();
     else if (g === 'kotakBaru') borangKotak(null, data.items.filter((it) => peringkat(it) === 'hk').map((it) => it.id));
     else if (g === 'skynet') borangSkynet(cariKotak(v));
@@ -3154,7 +3159,7 @@
   }
 
   // Tambah atau kemas kini acara Google Calendar untuk sale, dengan peringatan 30 dan 15 minit.
-  async function kalendarSale(id) {
+  async function kalendarSale(id, senyap) {
     let s = cariSale(id);
     if (!s) return;
     const badan = JSON.stringify({
@@ -3178,8 +3183,9 @@
       s.eventId = j.id || '';
       simpan();
       segarSemua();
-      toast('Ditambah ke Google Calendar. Peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.');
+      if (!senyap) toast('Ditambah ke Google Calendar. Peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.');
     } catch (e) {
+      if (senyap) throw e;
       const sebab = e.kod === 'popup_closed' || e.kod === 'access_denied' || e.kod === 'kal_tolak' ? 'Kebenaran Google Calendar tidak diberi.'
         : e.kod === 403 ? 'Google Calendar API belum diaktifkan dalam projek Google Cloud anda.'
           : 'Tidak dapat sambung ke Google Calendar.';
@@ -3189,6 +3195,127 @@
         butang: [{ nilai: 'batal', label: 'Tutup' }, { nilai: 'buka', label: 'Buka Google Calendar', kelas: 'utama' }],
       });
       if (p === 'buka') window.open(pautanKalendar(cariSale(id) || s), '_blank', 'noopener');
+    }
+  }
+
+  /* Sale untuk tempahan yang belum dibeli: RLC Selasa, Elite / MB Khamis, 9 pagi PT. */
+  const HARI_SALE = [{ re: /^RLC\b/, hari: 2 }, { re: /^(ELITE|MB|MATCHBOX)\b/, hari: 4 }];
+  const JENIS_SALE = ['RLC', 'ELITE', 'MB'];
+  const kunciItem = (it) => kunciOrang((it.jenis || '') + ' ' + it.nama);
+  function saleUntuk(it) {
+    const k = kunciItem(it);
+    return data.sale.filter((s) => s.kunci === k && s.t > Date.now() - 2 * 86400000).sort((a, b) => a.t - b.t)[0] || null;
+  }
+  const itemTanpaSale = () => itemTab('beli').filter((it) => !it.orderId && !saleUntuk(it));
+  function hariSale(jenis) {
+    const j = kunciOrang(jenis);
+    const x = HARI_SALE.find((h) => h.re.test(j));
+    return x ? x.hari : null;
+  }
+  // Hari minggu (0 = Ahad) seterusnya, 9:00 pagi PT, yang belum berlalu. Pulangkan tarikh PT 'YYYY-MM-DD'.
+  function tarikhSaleSeterusnya(hari) {
+    const tz = ZON.PT.tz;
+    const b = bahagianZon(Date.now(), tz);
+    for (let d = 0; d < 8; d++) {
+      const c = new Date(Date.UTC(b.y, b.mo - 1, b.d + d));
+      if (c.getUTCDay() !== hari) continue;
+      const t = keUtc(c.getUTCFullYear(), c.getUTCMonth() + 1, c.getUTCDate(), 9, 0, tz);
+      if (t > Date.now()) return c.getUTCFullYear() + '-' + dua(c.getUTCMonth() + 1) + '-' + dua(c.getUTCDate());
+    }
+    return '';
+  }
+
+  function borangSaleTempahan() {
+    const kump = new Map();
+    itemTanpaSale().sort(urut).forEach((it) => {
+      const k = kunciItem(it);
+      if (!kump.has(k)) kump.set(k, { k, jenis: it.jenis, nama: it.nama, items: [] });
+      kump.get(k).items.push(it);
+    });
+    const g = [...kump.values()];
+    if (!g.length) { toast('Semua tempahan yang belum dibeli sudah ada sale.'); return; }
+    const pilihanJenis = (v) => '<select data-jenis-sale>' + ['', ...JENIS_SALE, 'LAIN'].map((j) =>
+      '<option value="' + j + '"' + (j === v ? ' selected' : '') + '>' + (j === '' ? 'Pilih jenis' : j === 'LAIN' ? 'Lain-lain' : j) + '</option>').join('') + '</select>';
+    borang({
+      tajuk: 'Sale untuk tempahan',
+      nota: 'RLC: Selasa, Elite / MB: Khamis, 9:00 pagi waktu US (PT). Jenis lain: isi tarikh sendiri. Tarikh dan masa boleh diubah. Waktu Malaysia ditunjuk di bawah setiap item.',
+      html: '<div class="senarai-sale">' + g.map((x, i) => {
+        const hari = hariSale(x.jenis);
+        const tarikhAwal = hari === null ? '' : tarikhSaleSeterusnya(hari);
+        const orang = [...new Set(x.items.map((it) => it.orang))].join(', ');
+        return '<div class="baris-sale" data-i="' + i + '">' +
+          '<label class="tanda"><input type="checkbox" name="pilih" value="' + i + '"' + (tarikhAwal ? ' checked' : '') + '> <span><b>' + esc(labelItem(x.items[0])) + '</b>' +
+          '<small>' + x.items.length + ' tempahan · ' + esc(orang) + '</small></span></label>' +
+          (x.jenis ? '' : '<label class="medan kecil">Jenis' + pilihanJenis('') + '</label>') +
+          '<div class="dua"><label class="medan">Tarikh (PT)<input type="date" data-tarikh value="' + tarikhAwal + '"></label>' +
+          '<label class="medan">Masa (PT)<input type="time" data-masa value="09:00"></label></div>' +
+          '<p class="nota" data-my></p></div>';
+      }).join('') + '</div>' +
+        '<label class="tanda"><input type="checkbox" name="kal" checked> Tambah ke Google Calendar (peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum)</label>',
+      simpan: 'Simpan sale',
+      lepas: (f) => {
+        const masaBaris = (row) => {
+          const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(row.querySelector('[data-tarikh]').value);
+          const m = /^(\d{2}):(\d{2})/.exec(row.querySelector('[data-masa]').value);
+          return d && m ? keUtc(+d[1], +d[2], +d[3], +m[1], +m[2], ZON.PT.tz) : 0;
+        };
+        const kira = (row) => {
+          const t = masaBaris(row);
+          row.querySelector('[data-my]').textContent = t ? 'Waktu Malaysia: ' + masaZon(t, 'MY') + (t < Date.now() ? ' (sudah berlalu)' : '') : 'Pilih tarikh sale.';
+        };
+        f.querySelectorAll('.baris-sale').forEach((row) => {
+          kira(row);
+          row.addEventListener('input', (e) => {
+            if (e.target.matches('[data-jenis-sale]')) {
+              const h = hariSale(e.target.value);
+              if (h !== null) row.querySelector('[data-tarikh]').value = tarikhSaleSeterusnya(h);
+            }
+            // Bila tarikh diisi, item ditanda sendiri.
+            if (!e.target.matches('[name=pilih]') && masaBaris(row)) row.querySelector('[name=pilih]').checked = true;
+            kira(row);
+          });
+          row.addEventListener('change', () => kira(row));
+        });
+        f._masaBaris = masaBaris;
+      },
+      hantar(f) {
+        const rows = [...f.querySelectorAll('.baris-sale')].filter((row) => row.querySelector('[name=pilih]').checked);
+        if (!rows.length) return 'Tanda sekurang-kurangnya satu item.';
+        const baru = [];
+        for (const row of rows) {
+          const x = g[+row.dataset.i];
+          const t = f._masaBaris(row);
+          if (!t) return 'Isi tarikh dan masa sale untuk ' + labelItem(x.items[0]) + '.';
+          const js = row.querySelector('[data-jenis-sale]');
+          baru.push({ x, t, jenis: js && js.value && js.value !== 'LAIN' ? js.value : '' });
+        }
+        const ids = [];
+        ubah(() => {
+          baru.forEach(({ x, t, jenis }) => {
+            // Jenis yang dipilih disimpan pada tempahan supaya lain kali tak perlu pilih lagi.
+            if (jenis) x.items.forEach((it) => { const y = cariItem(it.id); if (y) y.jenis = jenis; });
+            const sl = bersihSale({ jenis: jenis || x.jenis, nama: x.nama, t, zon: 'PT' });
+            data.sale.push(sl);
+            ids.push(sl.id);
+          });
+        }, baru.length + ' sale disimpan.');
+        if (f.kal.checked) kalendarBanyak(ids.filter((id) => cariSale(id).t > Date.now()));
+        return '';
+      },
+    });
+  }
+
+  async function kalendarBanyak(ids) {
+    if (!ids.length) return;
+    let n = 0;
+    try {
+      for (const id of ids) { await kalendarSale(id, true); n++; }
+      toast((n === 1 ? 'Sale' : n + ' sale') + ' ditambah ke Google Calendar. Peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.');
+    } catch (e) {
+      const sebab = e.kod === 'popup_closed' || e.kod === 'access_denied' || e.kod === 'kal_tolak' ? 'Kebenaran Google Calendar tidak diberi.'
+        : e.kod === 403 ? 'Google Calendar API belum diaktifkan dalam projek Google Cloud anda.'
+          : 'Tidak dapat sambung ke Google Calendar.';
+      toast(sebab + ' Sale disimpan dalam apps; tambah ke kalendar kemudian dari Sale akan datang.');
     }
   }
 

@@ -1432,3 +1432,9 @@ button.banner-sale[hidden] { display: none; }
 .sale-kad a.btn { text-decoration: none; }
 .sale-lepas { margin-top: 16px; }
 .sale-lepas summary { cursor: pointer; font-weight: 700; color: var(--dakwat-2); font-size: 0.875rem; }
+.kad-sale { margin-top: 6px; font-size: 0.8125rem; font-weight: 700; color: var(--depo-teks, var(--dakwat-2)); }
+.baris-sale { border: 1px solid var(--garis); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.baris-sale .tanda span { display: inline-flex; flex-direction: column; }
+.baris-sale .tanda small { color: var(--dakwat-2); font-size: 0.8125rem; }
+.baris-sale select { display: block; width: 100%; margin-top: 4px; font: inherit; }
+.baris-sale .nota { margin: 4px 0 0; }
