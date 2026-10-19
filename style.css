@@ -1438,3 +1438,11 @@ button.banner-sale[hidden] { display: none; }
 .baris-sale .tanda small { color: var(--dakwat-2); font-size: 0.8125rem; }
 .baris-sale select { display: block; width: 100%; margin-top: 4px; font: inherit; }
 .baris-sale .nota { margin: 4px 0 0; }
+
+/* Tempoh setiap peringkat */
+.kad-hari { margin-top: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--dakwat-2); }
+.kad-hari.lama { color: var(--belum-teks); }
+.gm-hari { flex: none; align-self: center; font-size: 0.75rem; font-weight: 700; color: var(--dakwat-2); background: var(--tiada-lembut); border-radius: 99px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
+.gm-hari.lama { background: var(--belum-lembut); color: var(--belum-teks); }
+.gm-jumlah { margin: 4px 0 12px; font-size: 0.875rem; font-weight: 700; }
+.kad-tahap.lama { color: var(--belum-teks); }

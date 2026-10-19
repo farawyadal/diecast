@@ -38,6 +38,10 @@ Tiga titik > **Sale akan datang** > **+ Sale baru**: isi item, tarikh dan masa. 
 
 **Tambah ke kalendar** cipta acara dalam Google Calendar dengan peringatan 30 dan 15 minit sebelum sale, jadi telefon berbunyi walaupun apps ditutup. Kali pertama, Google minta kebenaran kalendar. Edit sale = acara dikemas kini; padam sale = acara dipadam. Perlu **Google Calendar API** diaktifkan dalam projek Google Cloud yang sama dengan Client ID (APIs & Services > Library > Google Calendar API > Enable).
 
+## Tempoh setiap peringkat
+
+Kad item menunjukkan berapa hari item sudah berada di peringkat semasa (contoh: *Di hub · 6 hari*, *Tunggu Skynet · 3 hari*, *Belum dihantar · 2 hari*). Peringkat yang bergantung pada tindakan sendiri (belum ship, gudang, hub, tunggu Skynet, belum dihantar) bertukar warna selepas 7 hari. Butiran item menunjukkan bilangan hari bagi setiap peringkat (yang paling lama ditanda) dan jumlah hari sejak order CM. Arkib: setiap item ada jumlah hari dari order CM hingga selesai, dan setiap bulan ada purata.
+
 ## Bahasa
 
 Tiga titik > **Bahasa**: Bahasa Melayu atau English. Apps dimuat semula bila bahasa ditukar. Data sendiri (nama item, pelanggan, catatan) dan mesej WhatsApp kepada pelanggan kekal seperti ditaip. Terjemahan English ada dalam `en.js`.

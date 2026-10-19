@@ -632,18 +632,46 @@
       '<div class="kotak baki' + (bk <= 0 ? ' sifar' : '') + '"><span class="label">' + (luar ? 'Baki perlu dibayar' : 'Baki') + '</span><span class="nilai">' + rm(bk) + '</span></div>';
   }
 
+  // Bila item masuk peringkat semasa, dan berapa hari sudah di situ.
+  const LABEL_TAHAN = {
+    beli: 'Belum ship', ship: 'Ke gudang', hub: 'Di gudang', keHK: 'Ke hub', hk: 'Di hub',
+    kotak: 'Tunggu Skynet', post: 'Ke Malaysia', sampai: 'Belum dihantar', hantar: 'Dalam penghantaran',
+  };
+  const TAHAN = { beli: 1, hub: 1, hk: 1, kotak: 1, sampai: 1 }; // peringkat yang bergantung pada tindakan sendiri
+  function masukPeringkat(it, p) {
+    const o = it.orderId ? cariOrder(it.orderId) : null;
+    const k = it.kotakId ? cariKotak(it.kotakId) : null;
+    const h = it.hantarId ? cariHantar(it.hantarId) : null;
+    return {
+      beli: o && o.tBeli, ship: it.tShip, hub: it.tHub, keHK: it.tKeHK, hk: it.tHK,
+      kotak: k && k.tBuat, post: k && k.tPost, sampai: k && k.tSampai, hantar: h && h.t,
+    }[p] || null;
+  }
+  function hariPeringkat(it) {
+    const p = peringkat(it);
+    const t = LABEL_TAHAN[p] ? masukPeringkat(it, p) : null;
+    if (!t) return null;
+    const hari = bilHari(t);
+    return { p, hari, label: LABEL_TAHAN[p], lama: !!TAHAN[p] && hari >= 7 };
+  }
+  // Jumlah hari dari order CM hingga selesai (atau hingga hari ini).
+  function hariKeseluruhan(it) {
+    const o = it.orderId ? cariOrder(it.orderId) : null;
+    return o && o.tBeli ? bilHari(o.tBeli, it.arkib || Date.now()) : null;
+  }
+  const teksHari = (n) => n + ' hari';
+
   function barisPeringkat(it) {
     const p = peringkat(it);
     if (p === 'luar' || p === 'selesai') return '';
     const o = it.orderId ? cariOrder(it.orderId) : null;
     let teks = PERINGKAT[p];
     const k = it.kotakId ? cariKotak(it.kotakId) : null;
-    if (p === 'beli' && o) teks += ' · ' + bilHari(o.tBeli) + ' hari';
-    if (['ship', 'hub', 'keHK', 'hk'].includes(p) && it.tShip) teks += ' · ' + bilHari(it.tShip) + ' hari';
-    if (p === 'post' && k) teks += ' · ' + bilHari(k.tPost) + ' hari';
+    const hp = hariPeringkat(it);
+    if (hp) teks += ' · ' + teksHari(hp.hari);
     if (['ship', 'hub', 'keHK', 'hk'].includes(p) && it.trackUS) teks += ' · ' + it.trackUS;
     else if (o && o.no) teks += ' · ' + o.no;
-    return '<div class="kad-tahap"><span class="tahap-titik t-' + p + '"></span>' + esc(teks) + '</div>';
+    return '<div class="kad-tahap' + (hp && hp.lama ? ' lama' : '') + '"><span class="tahap-titik t-' + p + '"></span>' + esc(teks) + '</div>';
   }
 
   function htmlKad(it, opt) {
@@ -664,9 +692,16 @@
     let bawah = opt.peringkat === false ? '' : barisPeringkat(it);
     const pk = peringkat(it);
     const bolehUndur = opt.undur && ['ship', 'hub', 'keHK', 'hk', 'kotak', 'post', 'sampai', 'hantar'].includes(pk);
+    if (opt.peringkat === false && !it.arkib) {
+      const hp = hariPeringkat(it);
+      if (hp) bawah += '<div class="kad-hari' + (hp.lama ? ' lama' : '') + '">' + esc(hp.label) + ' · ' + teksHari(hp.hari) + '</div>';
+    }
     const sl = !it.orderId && !it.arkib ? saleUntuk(it) : null;
     if (sl) bawah += '<div class="kad-sale">Sale ' + esc(masaZon(sl.t, 'MY')) + '</div>';
-    if (it.arkib) bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + '</div>';
+    if (it.arkib) {
+      const hk = hariKeseluruhan(it);
+      bawah += '<div class="kad-catatan">Selesai ' + tarikh(it.arkib) + (hk !== null ? ' · ' + teksHari(hk) + ' keseluruhan' : '') + '</div>';
+    }
     else if (it.catatan) bawah += '<div class="kad-catatan">' + esc(it.catatan) + '</div>';
     const bolehLeret = !it.arkib;
     const sg = srcGambar(it.gambar);
@@ -946,11 +981,13 @@
       let pertama = true;
       kump.forEach((g, k) => {
         const u = kiraUntung(g.items);
+        const hs = g.items.map(hariKeseluruhan).filter((x) => x !== null);
+        const purata = hs.length ? Math.round(hs.reduce((a, b) => a + b, 0) / hs.length) : null;
         const buka = ditapis || (bulanBuka.has(k) ? bulanBuka.get(k) : pertama);
         pertama = false;
         html += '<details class="kump kump-bulan" data-bulan="' + k + '"' + (buka ? ' open' : '') + '><summary class="kump-tajuk">' +
           '<span><b>' + esc(g.label) + '</b><small>' + g.items.length + ' item' + (u.ada ? ' · jual ' + rm(u.jual) + ' · untung <span class="' + (u.untung < 0 ? 'rugi' : 'untung') + '">' + rm(u.untung) + '</span>' : '') +
-          (u.tak ? ' · ' + u.tak + ' tanpa kos' : '') + '</small></span><span class="anak">›</span></summary>' +
+          (u.tak ? ' · ' + u.tak + ' tanpa kos' : '') + (purata !== null ? ' · purata ' + teksHari(purata) : '') + '</small></span><span class="anak">›</span></summary>' +
           g.items.map((it) => htmlKad(it, { orang: true, peringkat: false })).join('') + '</details>';
       });
     }
@@ -1965,12 +2002,24 @@
     toast('Nombor ' + no + ' disalin. Tampal di laman ' + a.dataset.kurier + '.');
   });
 
-  function garisMasa(baris) {
+  // opt.tempoh: tunjuk berapa hari di setiap peringkat (hingga peringkat seterusnya, atau hari ini).
+  function garisMasa(baris, opt) {
+    if (opt && opt.tempoh) {
+      const ada = baris.map((b, i) => (b.t ? i : -1)).filter((i) => i >= 0);
+      ada.forEach((i, n) => {
+        const seterusnya = ada[n + 1];
+        if (seterusnya !== undefined) baris[i].hari = bilHari(baris[i].t, baris[seterusnya].t);
+        else if (!opt.selesai) { baris[i].hari = bilHari(baris[i].t); baris[i].kini = true; }
+      });
+      const maks = Math.max(0, ...baris.map((b) => b.hari || 0));
+      if (maks > 0) baris.forEach((b) => { if (b.hari === maks) b.lama = true; });
+    }
     return '<ol class="garis-masa">' + baris.map((b) =>
       '<li class="' + (b.t ? 'siap' : '') + '"><span class="bulatan"></span><span class="isi"><b>' + esc(b.label) + '</b>' +
       '<small>' + (b.t ? tarikh(b.t) : (b.kosong || 'Belum')) + (b.sub ? ' · ' + b.sub : '') + '</small>' +
       (b.jejak && b.salin ? htmlJejak(b.salin, b.jejak) : '') + '</span>' +
       (b.salin ? '<button type="button" class="buang" data-salin="' + esc(b.salin) + '" aria-label="Salin ' + esc(b.salin) + '">' + IKON_SALIN + '</button>' : '') +
+      (b.hari !== undefined ? '<span class="gm-hari' + (b.lama ? ' lama' : '') + '">' + teksHari(b.hari) + (b.kini ? ' · kini' : '') + '</span>' : '') +
       '</li>').join('') + '</ol>';
   }
 
@@ -2201,7 +2250,9 @@
         { label: 'Tiba di Malaysia', t: k && k.tSampai },
         aku ? null : { label: hh && hh.cara === 'sendiri' ? 'Hantar sendiri' : 'Post J&T', t: hh ? hh.t : null, sub: hh && hh.track ? esc(hh.track) : '', salin: hh && hh.track, jejak: 'jnt' },
         { label: 'Selesai', t: it.arkib },
-      ].filter(Boolean));
+      ].filter(Boolean), { tempoh: !!o, selesai: !!it.arkib });
+      const hk = hariKeseluruhan(it);
+      if (hk !== null) html += '<p class="gm-jumlah">' + (it.arkib ? 'Jumlah ' + teksHari(hk) + ' dari order CM hingga selesai' : 'Sudah ' + teksHari(hk) + ' sejak order CM') + '</p>';
       html += '<div class="baris-btn pautan-kecil">' +
         (o ? '<button type="button" class="btn kecil" data-aksi="bukaOrder">Order ' + esc(o.no || '') + ' ›</button>' : '') +
         (k ? '<button type="button" class="btn kecil" data-aksi="bukaKotak">' + esc(namaKotak(k)) + ' ›</button>' : '') +
