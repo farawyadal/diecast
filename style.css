@@ -1447,4 +1447,5 @@ button.banner-sale[hidden] { display: none; }
 .gm-jumlah { margin: 4px 0 12px; font-size: 0.875rem; font-weight: 700; }
 .kad-tahap.lama { color: var(--belum-teks); }
 
-.bunga-api { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9999; }
+.bunga-api, .bunga-api:popover-open { position: fixed; inset: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; pointer-events: none; z-index: 9999; }
+.bunga-api::backdrop { display: none; }

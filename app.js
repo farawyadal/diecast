@@ -788,14 +788,14 @@
     bungaApi();
   }
 
-  // Bunga api bila barang selesai diterima. Tidak dimainkan kalau peranti minta kurangkan animasi.
+  // Bunga api bila barang selesai diterima.
   function bungaApi() {
-    try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) { /* abai */ }
     const c = document.createElement('canvas');
     c.className = 'bunga-api';
     c.setAttribute('aria-hidden', 'true');
-    // Dialog yang terbuka berada di lapisan atas; letak di dalamnya supaya tetap nampak.
-    ([...document.querySelectorAll('dialog[open]')].pop() || document.body).appendChild(c);
+    // Popover berada di lapisan paling atas, jadi tetap nampak walaupun ada dialog (butiran item) terbuka.
+    document.body.appendChild(c);
+    if (c.showPopover) { try { c.popover = 'manual'; c.showPopover(); } catch (e) { /* guna biasa */ } }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = window.innerWidth, H = window.innerHeight;
     c.width = W * dpr; c.height = H * dpr;
