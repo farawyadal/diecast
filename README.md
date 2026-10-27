@@ -26,7 +26,7 @@ Yang dijejak ialah setiap **item**, sebab satu order boleh pecah kepada beberapa
 
 **Gambar item:** dalam Tempahan baru / Order CM setiap baris ada *+ Gambar* (galeri/kamera) atau *Pautan*. Untuk item sedia ada: buka item > *+ Gambar item*. Pilih / ambil gambar (dikecilkan sendiri) atau tampal pautan gambar. Boleh guna untuk semua item bernama sama.
 
-**Leret kad:** ke kanan = rekod bayaran penuh (apps tanya dulu); ke kiri = barang dah diserah, masuk Arkib (ada **Buat asal**).
+**Leret kad:** ke kanan = rekod bayaran penuh (apps tanya dulu); ke kiri = **langkah seterusnya** ikut status item (contoh: Tiba di gudang, Ke hub, Tiba di hub, Tiba di Malaysia, Diterima). Langkah yang perlu butiran (Order CM, Declare, Consolidate, Tracking Skynet, Hantar) membuka borangnya. Item dengan tracking US yang sama, kotak yang sama atau hantaran yang sama bergerak bersama. Latar leret menunjukkan nama langkah; ada **Buat asal**.
 
 Ikon di atas: **Senarai order CM**, **Arkib**, dan **Pelanggan** (baki setiap pelanggan; dari situ boleh **Tukar nama / gabung** dua nama yang sebenarnya orang sama).
 

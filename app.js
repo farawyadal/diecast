@@ -706,7 +706,7 @@
     const bolehLeret = !it.arkib;
     const sg = srcGambar(it.gambar);
     return '<div class="kad-bungkus"' + (bolehLeret ? ' data-leret="' + esc(it.id) + '"' : '') + '>' +
-      (bolehLeret ? '<div class="leret-latar" aria-hidden="true"><span class="l-kanan">✓ Bayar penuh</span><span class="l-kiri">Selesai · arkib ✓</span></div>' : '') +
+      (bolehLeret ? '<div class="leret-latar" aria-hidden="true"><span class="l-kanan">✓ Bayar penuh</span><span class="l-kiri">' + esc(langkahSeterusnya(it).label) + ' →</span></div>' : '') +
       '<button type="button" class="kad st-' + (aku ? 'aku' : st) + (sg ? ' ada-gambar' : '') + '" data-id="' + esc(it.id) + '">' +
       (sg ? '<img class="kad-gambar" src="' + esc(sg) + '" alt="" loading="lazy" draggable="false">' : '') +
       '<div class="kad-atas"><div class="kad-nama">' +
@@ -722,7 +722,7 @@
   /* ---------- Leret kad ---------- */
 
   // Leret ke kanan: rekod bayaran penuh (ada pengesahan).
-  // Leret ke kiri: barang dah diserah, masuk Arkib (ada Buat asal).
+  // Leret ke kiri: ke langkah seterusnya (buka borang bila perlu isi butiran).
   let leret = null;
   let abaikanKlik = false;
   const JARAK_LERET = 90;
@@ -761,7 +761,7 @@
     setTimeout(() => { kad.style.transition = ''; b.classList.remove('sedang-leret', 'cukup'); delete b.dataset.arah; }, 200);
     const it = cariItem(b.dataset.leret);
     if (!it || Math.abs(dx) < JARAK_LERET) return;
-    if (dx > 0) leretBayar(it); else leretArkib(it);
+    if (dx > 0) leretBayar(it); else langkahSeterusnya(it).buat();
   }
   $('senarai').addEventListener('pointerup', tamatLeret);
   $('senarai').addEventListener('pointercancel', tamatLeret);
@@ -777,6 +777,31 @@
     });
     if (!ok) return;
     ubah(() => { it.bayaran.push({ id: idBaru(), amaun: bk, t: Date.now(), nota: 'Bayar penuh' }); }, rm(bk) + ' direkod. ' + labelItem(it) + ' telah dibayar penuh.');
+  }
+
+  // Langkah seterusnya bagi item mengikut peringkat semasa. Parcel / kotak / hantaran bergerak bersama.
+  function langkahSeterusnya(it) {
+    const p = peringkat(it);
+    const k = it.kotakId ? cariKotak(it.kotakId) : null;
+    const h = it.hantarId ? cariHantar(it.hantarId) : null;
+    const aku = it.kat === 'aku';
+    const terus = (kunci, mesej) => () => tandaMasa(sekumpulan(it), kunci, mesej, Date.now());
+    switch (p) {
+      case 'beli': return it.orderId
+        ? { label: 'Declare', buat: () => borangDeclare([it.id], it.orderId) }
+        : { label: 'Order CM', buat: () => borangOrderBaru([it.id]) };
+      case 'ship': return { label: 'Tiba di gudang', buat: terus('tHub', 'tiba di gudang.') };
+      case 'hub': return { label: 'Ke hub', buat: terus('tKeHK', 'dihantar ke hub.') };
+      case 'keHK': return { label: 'Tiba di hub', buat: terus('tHK', 'tiba di hub. Boleh consolidate.') };
+      case 'hk': return { label: 'Consolidate', buat: () => pilihKotak(it, sekumpulan(it)) };
+      case 'kotak': return { label: 'Tracking Skynet', buat: () => borangSkynet(k) };
+      case 'post': return { label: 'Tiba di Malaysia', buat: () => borangSampai(k) };
+      case 'sampai': return aku
+        ? { label: 'Diterima', buat: () => leretArkib(it) }
+        : { label: 'Hantar', buat: () => borangSerah(kunciOrang(it.orang), [it.id]) };
+      case 'hantar': return { label: 'Diterima', buat: () => terimaHantar(h) };
+      default: return { label: 'Selesai · arkib', buat: () => leretArkib(it) };
+    }
   }
 
   function leretArkib(it) {
@@ -2414,9 +2439,10 @@
   });
 
   // Dari item di hub: pilih kotak yang belum dipost, atau kotak baru.
-  function pilihKotak(it) {
+  function pilihKotak(it, ids) {
+    ids = ids && ids.length ? ids : [it.id];
     const terbuka = data.kotak.filter((k) => !k.tPost).sort((a, b) => b.tBuat - a.tBuat);
-    if (!terbuka.length) { borangKotak(null, [it.id]); return; }
+    if (!terbuka.length) { borangKotak(null, ids); return; }
     const pilihan = terbuka.map((k, i) => ({ nilai: k.id, label: namaKotak(k), sub: itemKotak(k).length + ' item', pilih: i === 0 }));
     pilihan.push({ nilai: '__baru', label: '+ Kotak baru', sub: 'Consolidate baru di BNS' });
     borang({
@@ -2426,9 +2452,11 @@
       hantar(f) {
         const v = nilaiPilih(f, 'kotak')[0];
         if (!v) return 'Pilih satu kotak.';
-        if (v === '__baru') { setTimeout(() => borangKotak(null, [it.id]), 0); return ''; }
+        if (v === '__baru') { setTimeout(() => borangKotak(null, ids), 0); return ''; }
         const k = cariKotak(v);
-        ubah(() => { it.kotakId = k.id; ['tHub', 'tKeHK', 'tHK'].forEach((x) => { if (!it[x]) it[x] = k.tBuat; }); }, 'Masuk ' + namaKotak(k) + '.');
+        ubah(() => {
+          ids.map(cariItem).filter(Boolean).forEach((x) => { x.kotakId = k.id; ['tHub', 'tKeHK', 'tHK'].forEach((y) => { if (!x[y]) x[y] = k.tBuat; }); });
+        }, (ids.length > 1 ? ids.length + ' item masuk ' : 'Masuk ') + namaKotak(k) + '.');
         return '';
       },
     });
