@@ -1454,3 +1454,26 @@ button.banner-sale[hidden] { display: none; }
 
 .bunga-api, .bunga-api:popover-open { position: fixed; inset: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; pointer-events: none; z-index: 9999; }
 .bunga-api::backdrop { display: none; }
+
+/* ---------- Tawaran kepada pelanggan ---------- */
+.tw-atas { display: flex; gap: 10px; align-items: flex-start; }
+.tw-atas > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tw-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; }
+.tw-org-baris { border-top: 1px solid var(--garis, rgba(127,127,127,.25)); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.tw-org-atas { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tw-org-atas b { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.tw-hrg { font-variant-numeric: tabular-nums; font-weight: 700; }
+.tw-gambar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tw-slot { aspect-ratio: 1; border-radius: 10px; overflow: hidden; position: relative; border: 1px dashed var(--garis, rgba(127,127,127,.4)); display: grid; place-items: center; font-size: .85rem; cursor: pointer; }
+.tw-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tw-slot .btn { position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 4px 6px; }
+.tw-org { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--garis, rgba(127,127,127,.2)); }
+.tw-org[hidden] { display: none; }
+.tw-caj { display: inline-flex; align-items: center; gap: 4px; font-size: .85rem; }
+.tw-caj input { width: 4.2em; }
+.tw-harga { font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; }
+.tw-tapis { width: 100%; margin-bottom: 6px; }
+.tw-tapis, .tw-caj input { padding: 8px 10px; border: 1px solid var(--garis); border-radius: 10px; background: var(--kertas); color: var(--dakwat); font: inherit; font-size: .95rem; }
+.tw-caj input { width: 4.6em; }
+.tw-tapis:focus, .tw-caj input:focus { outline: 2px solid var(--utama); outline-offset: 0; border-color: transparent; }
+.dua > .btn.kecil { align-self: flex-end; flex: 0 0 auto; margin-bottom: 2px; }

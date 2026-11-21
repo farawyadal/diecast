@@ -56,7 +56,7 @@
     : ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const AKU = 'AKU';
 
-  let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], sale: [], bank: '', kadar: null };
+  let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], sale: [], tawaran: [], caj: {}, bank: '', kadar: null };
   let tetapan = { tema: 'sistem', tab: 'beli', status: 'semua', akaun: 'fa.rawyadal', bahasa: BAHASA };
   let cari = '';
 
@@ -309,6 +309,32 @@
     };
   }
 
+  // Tawaran kepada pelanggan: satu barang, ramai penerima dengan harga masing-masing.
+  const STATUS_TAWARAN = ['baru', 'hantar', 'deal', 'tak'];
+  function bersihTawaran(x) {
+    if (!x || !String(x.nama || '').trim()) return null;
+    return {
+      id: String(x.id || idBaru()),
+      jenis: String(x.jenis || '').slice(0, 20),
+      nama: String(x.nama).trim().slice(0, 120),
+      harga: nomborAtauNull(x.harga) || 0,
+      berat: nomborAtauNull(x.berat) || 0,
+      gambar: (Array.isArray(x.gambar) ? x.gambar : []).map((g) => String(g || '')).filter(Boolean).slice(0, 3),
+      dibuat: Number(x.dibuat) || Date.now(),
+      penerima: (Array.isArray(x.penerima) ? x.penerima : []).map((p) => {
+        const orang = String((p && p.orang) || '').trim().slice(0, 60);
+        if (!orang) return null;
+        return { orang, harga: nomborAtauNull(p.harga) || 0, status: STATUS_TAWARAN.includes(p.status) ? p.status : 'baru', t: Number(p.t) || 0, itemId: String(p.itemId || '') };
+      }).filter(Boolean),
+    };
+  }
+  // Tambahan harga tetap ikut pelanggan (contoh: Sabah), kunci = nama pelanggan huruf besar.
+  function bersihCaj(c) {
+    const r = {};
+    if (c && typeof c === 'object') Object.keys(c).slice(0, 500).forEach((k) => { const v = nomborAtauNull(c[k]); if (v) r[kunciOrang(k)] = v; });
+    return r;
+  }
+
   function bersihData(j) {
     naikTaraf(j);
     const d = {
@@ -319,6 +345,8 @@
       kotak: (Array.isArray(j.kotak) ? j.kotak : []).map(bersihKotak).filter(Boolean),
       hantar: (Array.isArray(j.hantar) ? j.hantar : []).map(bersihHantar).filter(Boolean),
       sale: (Array.isArray(j.sale) ? j.sale : []).map(bersihSale).filter(Boolean),
+      tawaran: (Array.isArray(j.tawaran) ? j.tawaran : []).map(bersihTawaran).filter(Boolean),
+      caj: bersihCaj(j.caj),
       bank: String(j.bank || '').slice(0, 300),
       kadar: nomborAtauNull(j.kadar) === null ? null : Math.round(Number(j.kadar) * 10000) / 10000,
       markup: nomborAtauNull(j.markup) || 0,      // caj tukaran kad (%) atas kadar pasaran
@@ -328,7 +356,7 @@
 
   const eksportData = () => ({
     app: 'diecast', v: 2, diubah: data.diubah, items: data.items, orders: data.orders, kotak: data.kotak,
-    hantar: data.hantar, sale: data.sale, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
+    hantar: data.hantar, sale: data.sale, tawaran: data.tawaran, caj: data.caj, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
   });
 
   function muat() {
@@ -2500,6 +2528,8 @@
   const AWALAN_GB = 'g:';
   const urlGambar = new Map(); // cincang -> object URL
   let siapGambar = Promise.resolve(); // selesai bila gambar dalam peranti sudah dimuat
+  // Semua gambar dalam simpanan yang masih digunakan (item dan tawaran).
+  const semuaHashGambar = () => new Set([...data.items.map((it) => hashGambar(it.gambar)), ...data.tawaran.flatMap((t) => t.gambar.map(hashGambar))].filter(Boolean));
   const hashGambar = (v) => (typeof v === 'string' && v.startsWith(AWALAN_GB) ? v.slice(AWALAN_GB.length) : '');
   function srcGambar(v) {
     if (!v) return '';
@@ -2593,7 +2623,7 @@
   }
   // Buang gambar dalam peranti yang tiada item lagi merujuknya.
   async function kemasGambar() {
-    const guna = new Set(data.items.map((it) => hashGambar(it.gambar)).filter(Boolean));
+    const guna = semuaHashGambar();
     const buang = [...urlGambar.keys()].filter((h) => !guna.has(h));
     if (!buang.length) return;
     try {
@@ -3524,6 +3554,324 @@
     }
   });
   $('btnSale').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaSale, 0); });
+
+  /* ---------- Tawaran kepada pelanggan ---------- */
+  /*
+    Tawaran = satu barang yang ditawar kepada ramai pelanggan dengan harga masing-masing.
+    Gambar (1 hingga 3), nama dan harga dikongsi terus ke WhatsApp / Messenger melalui menu kongsi.
+    Pelanggan balas DEAL; status Deal ditanda di sini, kemudian dijadikan tempahan.
+    Tambahan tetap ikut pelanggan (contoh: Sabah) disimpan dalam data.caj dan diingat.
+  */
+  const CIP_TW = { baru: ['Belum dihantar', 'st-tiada'], hantar: ['Dihantar', 'st-depo'], deal: ['Deal', 'st-lunas'], tak: ['Tak nak', 'st-belum'] };
+  const cariTawaran = (id) => data.tawaran.find((t) => t.id === id);
+  const hargaTawaran = (t, kunci) => bulat((Number(t.harga) || 0) + (Number(t.berat) || 0) + (data.caj[kunci] || 0));
+  const namaTawaran = (t) => ((t.jenis ? t.jenis + ' ' : '') + t.nama).trim();
+  let twGambar = [];
+
+  function senaraiPelanggan() {
+    const m = new Map();
+    data.items.forEach((it) => { if (it.kat === 'jual') { const k = kunciOrang(it.orang); if (k && !m.has(k)) m.set(k, it.orang); } });
+    data.tawaran.forEach((t) => t.penerima.forEach((p) => { const k = kunciOrang(p.orang); if (!m.has(k)) m.set(k, p.orang); }));
+    return [...m].sort((a, b) => a[1].localeCompare(b[1]));
+  }
+
+  function bukaTawaran() {
+    panelLukis = paparTawaran;
+    paparTawaran();
+    buka($('dlgPanel'));
+  }
+
+  function htmlTawaran(t) {
+    const k = { deal: 0, hantar: 0, baru: 0, tak: 0 };
+    t.penerima.forEach((p) => { k[p.status]++; });
+    const ring = [k.deal ? k.deal + ' deal' : '', k.hantar ? k.hantar + ' menunggu jawapan' : '', k.baru ? k.baru + ' belum dihantar' : '', k.tak ? k.tak + ' tak nak' : ''].filter(Boolean).join(' · ');
+    const thumb = t.gambar.length ? '<img class="tw-thumb" src="' + esc(srcGambar(t.gambar[0])) + '" alt="">' : '';
+    let h = '<div class="sale-kad tw-kad"><div class="tw-atas">' + thumb + '<div><b>' + esc(namaTawaran(t)) + '</b>' +
+      '<small>Harga asas ' + rm(t.harga) + (t.berat ? ' · berat + ' + rm(t.berat) : '') + (t.gambar.length ? ' · ' + t.gambar.length + ' gambar' : '') + '</small>' +
+      (ring ? '<small>' + esc(ring) + '</small>' : '') + '</div></div>';
+    t.penerima.forEach((p) => {
+      const kk = kunciOrang(p.orang);
+      const c = CIP_TW[p.status];
+      const btn = (aksi, label, kelas) => '<button type="button" class="btn kecil' + (kelas ? ' ' + kelas : '') + '" data-tw-aksi="' + aksi + '" data-tw="' + esc(t.id) + '" data-p="' + esc(kk) + '">' + label + '</button>';
+      let b = '';
+      if (p.status === 'baru' || p.status === 'hantar') b += btn('kongsi', p.status === 'baru' ? 'Kongsi' : 'Kongsi semula', p.status === 'baru' ? 'utama' : '');
+      if (p.status === 'baru' || p.status === 'hantar') b += btn('deal', 'Deal') + (p.status === 'hantar' ? btn('tak', 'Tak nak') : '');
+      if (p.status === 'deal') b += p.itemId && cariItem(p.itemId) ? '<span class="nota">✓ Dalam tempahan</span>' : btn('tempah', 'Jadikan tempahan', 'utama');
+      if (p.status === 'tak') b += btn('buka', 'Buka semula');
+      b += btn('buang', 'Buang', 'bahaya');
+      h += '<div class="tw-org-baris"><div class="tw-org-atas"><b>' + esc(p.orang) + '</b><span class="tw-hrg">' + rm(p.harga) + '</span>' +
+        '<span class="pil ' + c[1] + '">' + esc(c[0]) + '</span></div><div class="baris-btn">' + b + '</div></div>';
+    });
+    h += '<div class="baris-btn"><button type="button" class="btn kecil" data-tw-aksi="tambah" data-tw="' + esc(t.id) + '">+ Pelanggan</button>' +
+      '<button type="button" class="btn kecil" data-tw-aksi="edit" data-tw="' + esc(t.id) + '">Edit</button></div></div>';
+    return h;
+  }
+
+  function paparTawaran() {
+    const senarai = data.tawaran.slice().sort((a, b) => b.dibuat - a.dibuat);
+    let html = '<h2>Tawaran</h2><p class="nota">Muat naik gambar dan tetapkan harga, kemudian kongsi kepada setiap pelanggan. Pelanggan balas DEAL, dan kau tanda di sini.</p>' +
+      '<button type="button" class="btn utama penuh-lebar" data-tw-aksi="baru">+ Tawaran baru</button>';
+    html += senarai.length ? senarai.slice(0, 8).map(htmlTawaran).join('') : '<p class="kosong">Belum ada tawaran.</p>';
+    if (senarai.length > 8) html += '<details class="sale-lepas"><summary>Tawaran lama (' + (senarai.length - 8) + ')</summary>' + senarai.slice(8).map(htmlTawaran).join('') + '</details>';
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
+    $('panelIsi').innerHTML = html;
+  }
+
+  function htmlGambarTw() {
+    let h = '<div class="tw-gambar">';
+    twGambar.forEach((g, i) => {
+      h += '<div class="tw-slot"><img src="' + esc(srcGambar(g)) + '" alt=""><button type="button" class="btn kecil bahaya" data-tw-buang="' + i + '">Buang</button></div>';
+    });
+    if (twGambar.length < 3) h += '<label class="tw-slot tw-slot-tambah"><input type="file" accept="image/*" multiple data-tw-fail hidden>+ Gambar</label>';
+    return h + '</div>';
+  }
+
+  function htmlOrangTw(k, nama, tanda) {
+    const caj = data.caj[k] || (/^HARMIZAN/.test(k) ? 15 : '');
+    return '<div class="tw-org" data-k="' + esc(k) + '" data-nama="' + esc(nama) + '"><label class="tanda"><input type="checkbox" name="twOrang"' + (tanda ? ' checked' : '') + '> ' + esc(nama) + '</label>' +
+      '<label class="tw-caj">+ RM<input type="number" inputmode="decimal" min="0" step="0.5" value="' + esc(caj) + '" aria-label="Tambahan ' + esc(nama) + '"></label><b class="tw-harga"></b></div>';
+  }
+
+  function kiraTw(f) {
+    const asas = (Number(f.harga.value) || 0) + (Number(f.berat.value) || 0);
+    f.querySelectorAll('.tw-org').forEach((el) => {
+      el.querySelector('.tw-harga').textContent = rm(bulat(asas + (Number(el.querySelector('.tw-caj input').value) || 0)));
+    });
+  }
+
+  function borangTawaran(t) {
+    const baru = !t;
+    isiDatalistOrang();
+    twGambar = t ? t.gambar.slice() : [];
+    const akhir = data.tawaran.slice().sort((a, b) => b.dibuat - a.dibuat)[0];
+    const tanda = new Set(baru && akhir ? akhir.penerima.map((p) => kunciOrang(p.orang)) : []);
+    borang({
+      tajuk: baru ? 'Tawaran baru' : 'Edit tawaran',
+      html: '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(t ? t.jenis : '') + '"></label>' +
+        '<label class="medan">Barang<input name="nama" maxlength="120" data-fokus placeholder="Contoh: Nissan Skyline GT-R" value="' + esc(t ? t.nama : '') + '"></label></div>' +
+        '<div class="dua"><label class="medan">Harga asas (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(t ? t.harga : '') + '"></label>' +
+        '<label class="medan">Barang berat, tambah (RM)<input name="berat" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(t && t.berat ? t.berat : '') + '"></label></div>' +
+        '<h3>Gambar <small>(1 hingga 3)</small></h3>' + htmlGambarTw() +
+        (baru ? '<h3>Pelanggan</h3><p class="nota">Tambahan RM ikut pelanggan diingat untuk tawaran seterusnya.</p>' +
+          '<input class="tw-tapis" type="search" placeholder="Cari pelanggan" aria-label="Cari pelanggan" data-tw-tapis>' +
+          '<div id="twOrang">' + senaraiPelanggan().map(([k, n]) => htmlOrangTw(k, n, tanda.has(k))).join('') + '</div>' +
+          '<div class="dua"><label class="medan">Pelanggan baru<input id="twBaru" list="senaraiOrang" maxlength="60" placeholder="Nama"></label>' +
+          '<button type="button" class="btn kecil" data-tw-orang-baru>+ Tambah</button></div>'
+          : '<p class="nota">Harga pelanggan yang belum dihantar akan dikemas kini. Yang sudah dihantar kekal.</p>' +
+            '<div class="baris-btn"><button type="button" class="btn bahaya kecil" data-tw-padam>Padam tawaran</button></div>'),
+      simpan: baru ? 'Simpan' : 'Simpan',
+      lepas: (f) => {
+        ['harga', 'berat'].forEach((n) => f[n].addEventListener('input', () => kiraTw(f)));
+        if (baru) kiraTw(f);
+        const pd = f.querySelector('[data-tw-padam]');
+        if (pd) pd.addEventListener('click', () => padamTawaran(t));
+      },
+      hantar(f) {
+        const nama = f.nama.value.trim();
+        if (!nama) return 'Isi nama barang.';
+        const harga = Number(f.harga.value);
+        if (!(harga > 0)) return 'Isi harga asas.';
+        const berat = Number(f.berat.value) || 0;
+        const baris = [...f.querySelectorAll('.tw-org')].map((el) => ({
+          k: el.dataset.k, nama: el.dataset.nama, tanda: el.querySelector('[name="twOrang"]').checked, caj: bulat(el.querySelector('.tw-caj input').value),
+        }));
+        const pilih = baris.filter((b) => b.tanda);
+        if (baru && !pilih.length) return 'Tanda sekurang-kurangnya seorang pelanggan.';
+        const x = bersihTawaran(Object.assign({}, t || {}, {
+          jenis: f.jenis.value.trim(), nama, harga, berat, gambar: twGambar.slice(),
+          penerima: t ? t.penerima : pilih.map((b) => ({ orang: b.nama, harga: bulat(harga + berat + b.caj), status: 'baru' })),
+        }));
+        ubah(() => {
+          baris.forEach((b) => { if (b.caj > 0) data.caj[b.k] = b.caj; else delete data.caj[b.k]; });
+          if (t) x.penerima.forEach((p) => { if (p.status === 'baru') p.harga = hargaTawaran(x, kunciOrang(p.orang)); });
+          const i = data.tawaran.findIndex((y) => y.id === x.id);
+          if (i >= 0) data.tawaran[i] = x; else data.tawaran.push(x);
+        }, baru ? 'Tawaran disimpan. Tekan Kongsi pada setiap pelanggan.' : 'Tawaran dikemas kini.');
+        if (!$('dlgPanel').open || panelLukis !== paparTawaran) bukaTawaran();
+        return '';
+      },
+    });
+  }
+
+  $('formX').addEventListener('change', async (e) => {
+    if (!e.target.matches('[data-tw-fail]')) return;
+    const fail = [...(e.target.files || [])].slice(0, 3 - twGambar.length);
+    for (const x of fail) {
+      try { twGambar.push(await gambarDariFail(x)); } catch (err) { toast('Gambar tidak dapat dibaca.'); }
+    }
+    const el = $('formX').querySelector('.tw-gambar');
+    if (el) el.outerHTML = htmlGambarTw();
+  });
+  $('formX').addEventListener('click', (e) => {
+    const bg = e.target.closest('[data-tw-buang]');
+    if (bg) {
+      twGambar.splice(Number(bg.dataset.twBuang), 1);
+      $('formX').querySelector('.tw-gambar').outerHTML = htmlGambarTw();
+      return;
+    }
+    if (!e.target.closest('[data-tw-orang-baru]')) return;
+    const f = $('formX');
+    const nama = f.querySelector('#twBaru').value.trim();
+    if (!nama) return;
+    const k = kunciOrang(nama);
+    const ada = [...f.querySelectorAll('.tw-org')].find((el) => el.dataset.k === k);
+    if (ada) ada.querySelector('[name="twOrang"]').checked = true;
+    else f.querySelector('#twOrang').insertAdjacentHTML('afterbegin', htmlOrangTw(k, nama, true));
+    f.querySelector('#twBaru').value = '';
+    kiraTw(f);
+  });
+  $('formX').addEventListener('input', (e) => {
+    if (e.target.matches('.tw-caj input')) kiraTw($('formX'));
+    if (!e.target.matches('[data-tw-tapis]')) return;
+    const q = e.target.value.trim().toLowerCase();
+    $('formX').querySelectorAll('.tw-org').forEach((el) => {
+      el.hidden = !!q && !el.dataset.nama.toLowerCase().includes(q) && !el.querySelector('[name="twOrang"]').checked;
+    });
+  });
+
+  async function padamTawaran(t) {
+    const ok = await sahkan({ tajuk: 'Padam tawaran?', teks: namaTawaran(t) + '\nItem tempahan yang sudah dibuat tidak dipadam.', ya: 'Padam' });
+    if (!ok) return;
+    tutup($('dlgForm'));
+    ubah(() => { data.tawaran = data.tawaran.filter((y) => y.id !== t.id); }, 'Tawaran dipadam.');
+  }
+
+  function borangTambahOrang(t) {
+    isiDatalistOrang();
+    borang({
+      tajuk: 'Tambah pelanggan',
+      nota: esc(namaTawaran(t)),
+      html: '<label class="medan">Pelanggan<input name="orang" list="senaraiOrang" maxlength="60" data-fokus></label>' +
+        '<label class="medan">Tambahan (RM) <small>(diingat untuk pelanggan ini)</small><input name="caj" type="number" inputmode="decimal" min="0" step="0.5"></label>' +
+        '<p class="nota" id="twHarga"></p>',
+      lepas: (f) => {
+        const kira = () => {
+          const k = kunciOrang(f.orang.value);
+          if (document.activeElement !== f.caj && k) f.caj.value = data.caj[k] || (/^HARMIZAN/.test(k) ? 15 : '');
+          f.querySelector('#twHarga').textContent = 'Harga: ' + rm(bulat((t.harga || 0) + (t.berat || 0) + (Number(f.caj.value) || 0)));
+        };
+        f.orang.addEventListener('input', kira);
+        f.orang.addEventListener('change', kira);
+        f.caj.addEventListener('input', kira);
+        kira();
+      },
+      hantar(f) {
+        const nama = f.orang.value.trim();
+        if (!nama) return 'Isi nama pelanggan.';
+        const k = kunciOrang(nama);
+        if (t.penerima.some((p) => kunciOrang(p.orang) === k)) return nama + ' sudah ada dalam tawaran ini.';
+        const caj = bulat(f.caj.value);
+        ubah(() => {
+          if (caj > 0) data.caj[k] = caj; else delete data.caj[k];
+          t.penerima.push({ orang: nama, harga: hargaTawaran(t, k), status: 'baru', t: 0, itemId: '' });
+        }, nama + ' ditambah.');
+        return '';
+      },
+    });
+  }
+
+  function teksTawaran(t, p) {
+    return 'Salam ' + p.orang + '.\n\nAda tawaran Mattel Creations:\n' + namaTawaran(t) + '\nHarga: ' + rm(p.harga) + '\n\nBerminat? Balas DEAL.';
+  }
+
+  async function failGambarTw(t) {
+    const fail = [];
+    for (const g of t.gambar) {
+      const h = hashGambar(g);
+      if (!h) continue;
+      try {
+        const blob = await bacaBlob(h);
+        if (blob) fail.push(new File([blob], (fail.length + 1) + '.jpg', { type: blob.type || 'image/jpeg' }));
+      } catch (e) { /* abai */ }
+    }
+    return fail;
+  }
+
+  function tandaHantar(idT, kunci) {
+    const t = cariTawaran(idT);
+    const p = t && t.penerima.find((x) => kunciOrang(x.orang) === kunci);
+    if (!p || p.status === 'deal') return;
+    ubah(() => { p.status = 'hantar'; p.t = Date.now(); }, 'Ditanda dihantar kepada ' + p.orang + '.');
+  }
+
+  // Kongsi: gambar + mesej ke app pilihan (WhatsApp, Messenger dan lain-lain). Tanda "Dihantar" bila selesai.
+  function kongsiTawaran(t, p) {
+    const idT = t.id, kunci = kunciOrang(p.orang);
+    let failSedia = null;
+    const sedia = failGambarTw(t).then((f) => { failSedia = f; return f; });
+    const teks = teksTawaran(t, p);
+    borang({
+      tajuk: 'Kongsi kepada ' + p.orang,
+      html: '<pre class="pratonton" translate="no">' + esc(teks) + '</pre>' +
+        (t.gambar.length ? '<p class="nota">' + t.gambar.length + ' gambar dihantar bersama mesej.</p>' : '<p class="nota">Tiada gambar dalam tawaran ini.</p>') +
+        '<div class="aksi-kongsi"><button class="btn" type="button" data-tw-teks>Teks sahaja</button><button class="btn" type="button" data-tw-salin>Salin</button></div>',
+      simpan: 'Kongsi',
+      lepas: (f) => {
+        f.querySelector('[data-tw-teks]').addEventListener('click', async () => {
+          tutup($('dlgForm'));
+          try { await navigator.share({ text: teks }); tandaHantar(idT, kunci); } catch (e) { if (!e || e.name !== 'AbortError') { try { await navigator.clipboard.writeText(teks); toast('Mesej disalin.'); } catch (e2) { toast('Tak dapat kongsi.'); } } }
+        });
+        f.querySelector('[data-tw-salin]').addEventListener('click', async () => {
+          tutup($('dlgForm'));
+          try { await navigator.clipboard.writeText(teks); toast('Mesej disalin. Tampal dalam chat.'); tandaHantar(idT, kunci); } catch (e) { toast('Tak dapat salin.'); }
+        });
+      },
+      hantar() {
+        (async () => {
+          const fail = failSedia || await sedia;
+          try {
+            if (navigator.share) {
+              const d = { text: teks };
+              if (fail.length && navigator.canShare && navigator.canShare({ files: fail })) d.files = fail;
+              await navigator.share(d);
+            } else {
+              await navigator.clipboard.writeText(teks);
+              toast('Mesej disalin. Tampal dalam chat.');
+            }
+          } catch (e) {
+            if (e && e.name === 'AbortError') return;
+            toast('Tak dapat kongsi. Guna butang Salin.');
+            return;
+          }
+          tandaHantar(idT, kunci);
+        })();
+        return '';
+      },
+    });
+  }
+
+  function jadikanTempahan(t, p) {
+    const k = kunciOrang(p.orang);
+    ubah(() => {
+      const it = bersihItem({
+        kat: 'jual', jenis: t.jenis, nama: t.nama, qty: 1, orang: p.orang, tel: telUntuk(p.orang),
+        harga: p.harga, gambar: t.gambar[0] || gambarSama(t.jenis, t.nama), dibuat: Date.now(), urutan: Date.now(),
+      });
+      data.items.push(it);
+      p.itemId = it.id;
+    }, 'Tempahan ' + p.orang + ' dibuat. Lihat dalam tab Tempahan.');
+    return k;
+  }
+
+  $('panelIsi').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tw-aksi]');
+    if (!b) return;
+    const a = b.dataset.twAksi;
+    if (a === 'baru') { borangTawaran(null); return; }
+    const t = cariTawaran(b.dataset.tw);
+    if (!t) return;
+    if (a === 'edit') { borangTawaran(t); return; }
+    if (a === 'tambah') { borangTambahOrang(t); return; }
+    const p = t.penerima.find((x) => kunciOrang(x.orang) === b.dataset.p);
+    if (!p) return;
+    if (a === 'kongsi') kongsiTawaran(t, p);
+    else if (a === 'deal') ubah(() => { p.status = 'deal'; p.t = Date.now(); }, p.orang + ': Deal. Tekan Jadikan tempahan.');
+    else if (a === 'tak') ubah(() => { p.status = 'tak'; p.t = Date.now(); }, p.orang + ': tak nak.');
+    else if (a === 'buka') ubah(() => { p.status = 'hantar'; });
+    else if (a === 'tempah') jadikanTempahan(t, p);
+    else if (a === 'buang') ubah(() => { t.penerima = t.penerima.filter((x) => x !== p); }, p.orang + ' dibuang daripada tawaran.');
+  });
+  $('btnTawaran').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaTawaran, 0); });
   $('bannerSale').addEventListener('click', bukaSale);
   setInterval(() => {
     paparBannerSale();
@@ -3567,7 +3915,7 @@
   $('btnEksport').addEventListener('click', async () => {
     // Gambar dalam peranti disertakan supaya salinan lengkap.
     const gambar = {};
-    for (const h of new Set(data.items.map((it) => hashGambar(it.gambar)).filter(Boolean))) {
+    for (const h of semuaHashGambar()) {
       try { const b = await bacaBlob(h); if (b) gambar[h] = await blobKeData(b); } catch (e) { /* abai */ }
     }
     const isi = JSON.stringify(Object.assign({ disimpan: Date.now() }, eksportData(), Object.keys(gambar).length ? { gambar } : {}), null, 1);
@@ -3776,7 +4124,7 @@
   // Gambar: satu fail g-<cincang>.jpg bagi setiap gambar dalam folder apps. Muat naik yang
   // belum ada di Drive, muat turun yang belum ada dalam peranti. Hanya gambar yang dirujuk item.
   async function selarasGambar() {
-    const perlu = [...new Set(data.items.map((it) => hashGambar(it.gambar)).filter(Boolean))];
+    const perlu = [...semuaHashGambar()];
     if (!perlu.length) return;
     const jauh = new Map();
     let halaman = '';
