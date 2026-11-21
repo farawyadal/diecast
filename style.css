@@ -777,7 +777,8 @@ dialog::backdrop { background: var(--tirai); }
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: calc(100% - 32px);
+  width: max-content;
+  max-width: calc(100vw - 32px);
   padding: 11px 16px;
   border-radius: 12px;
   background: var(--dakwat);

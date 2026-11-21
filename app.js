@@ -501,8 +501,16 @@
   /* ---------- Toast ---------- */
 
   let toastMasa = null;
+  // Dialog modal menjadikan selebihnya halaman tak boleh disentuh dan menutupinya, jadi toast
+  // (dengan butang Buat asal) diletak di dalam dialog paling atas yang sedang dibuka.
+  function letakToast() {
+    const t = $('toast');
+    const atas = tindan.length ? tindan[tindan.length - 1] : document.body;
+    if (t.parentElement !== atas) atas.appendChild(t);
+  }
   function toast(teks, btn) {
     const t = $('toast');
+    letakToast();
     $('toastTeks').textContent = teks;
     const b = $('toastBtn');
     if (btn) {
@@ -530,6 +538,7 @@
     if (dlg.open) return;
     dlg.showModal();
     tindan.push(dlg);
+    letakToast();
     // Kalau history.back() dari helaian yang baru ditutup belum selesai, push selepas ia selesai.
     if (abaikanPop > 0) pushTertunda++;
     else history.pushState({ diecast: tindan.length }, '');
@@ -542,6 +551,7 @@
       const i = tindan.indexOf(dlg);
       if (i < 0) return;
       tindan.splice(i, 1);
+      letakToast();
       if (dlg.dataset.pop === '1') { dlg.dataset.pop = ''; return; }
       abaikanPop++;
       history.back();
