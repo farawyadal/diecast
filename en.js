@@ -90,7 +90,7 @@ window.DIECAST_EN = {
     'Nota': 'Note',
     'Contoh: transfer Maybank': 'e.g. Maybank transfer',
     'Diecast · Developed by FaridAssamani': 'Diecast · Developed by FaridAssamani',
-    'Diecast · v30 · 21 Nov 2026 · © 2026 · Developed by FaridAssamani': 'Diecast · v30 · 21 Nov 2026 · © 2026 · Developed by FaridAssamani',
+    'Diecast · v31 · 21 Nov 2026 · © 2026 · Developed by FaridAssamani': 'Diecast · v31 · 21 Nov 2026 · © 2026 · Developed by FaridAssamani',
     'Kongsi': 'Share',
     'Gambar': 'Photos',
     'Tawaran': 'Offers',

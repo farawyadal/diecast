@@ -3085,7 +3085,7 @@
     if (!ada.length) { toast('Tiada baki.'); return; }
     const jumlah = bakiPositif(ada);
     const sampai = ada.every((it) => peringkat(it) === 'sampai');
-    let teks = 'Salam ' + ada[0].orang + '.\n\n' + (sampai ? 'Barang pre-order telah tiba. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
+    let teks = 'Salam Bang ' + ada[0].orang + '.\n\n' + (sampai ? 'Barang pre-order telah tiba. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
       (ada.length > 1 ? '\n\nJumlah baki: ' + rm(jumlah) : '') + '\n';
     if (data.bank) teks += '\n' + data.bank.trim() + '\n';
     teks += '\nTerima kasih.';
@@ -3098,7 +3098,7 @@
     const bk = bakiPositif(its);
     const ramai = new Set(its.map((it) => kunciOrang(it.orang))).size > 1;
     const baris = its.map((it) => '- ' + labelItem(it) + (ramai ? ' (' + it.orang + ')' : '')).join('\n');
-    let teks = 'Salam ' + h.orang.split(' + ')[0] + '.\n\n';
+    let teks = 'Salam Bang ' + h.orang.split(' + ')[0] + '.\n\n';
     if (h.cara === 'pos') {
       teks += 'Barang ' + (h.dipos ? 'telah' : 'akan') + ' dipos melalui J&T:\n' + baris;
       if (h.track) {
@@ -3771,7 +3771,7 @@
   }
 
   function teksTawaran(t, p) {
-    return 'Salam ' + p.orang + '.\n\nAda tawaran Mattel Creations:\n' + namaTawaran(t) + '\nHarga: ' + rm(p.harga) + '\n\nBerminat? Balas DEAL.';
+    return 'Salam Bang ' + p.orang + '.\n\nAda tawaran Mattel Creations:\n' + namaTawaran(t) + '\nHarga: ' + rm(p.harga) + '\n\nBerminat? Balas DEAL.';
   }
 
   async function failGambarTw(t) {
