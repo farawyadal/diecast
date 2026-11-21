@@ -3605,6 +3605,7 @@
       const btn = (aksi, label, kelas) => '<button type="button" class="btn kecil' + (kelas ? ' ' + kelas : '') + '" data-tw-aksi="' + aksi + '" data-tw="' + esc(t.id) + '" data-p="' + esc(kk) + '">' + label + '</button>';
       let b = '';
       if (p.status === 'baru' || p.status === 'hantar') b += btn('kongsi', p.status === 'baru' ? 'Kongsi' : 'Kongsi semula', p.status === 'baru' ? 'utama' : '');
+      if (p.status === 'baru') b += btn('hantar', 'Dah hantar');
       if (p.status === 'baru' || p.status === 'hantar') b += btn('deal', 'Deal') + (p.status === 'hantar' ? btn('tak', 'Tak nak') : '');
       if (p.status === 'deal') b += p.itemId && cariItem(p.itemId) ? '<span class="nota">✓ Dalam tempahan</span>' : btn('tempah', 'Jadikan tempahan', 'utama');
       if (p.status === 'tak') b += btn('buka', 'Buka semula');
@@ -3799,13 +3800,14 @@
 
   // Tanda "Dihantar" sebaik menu kongsi dibuka: pada Android, janji navigator.share() kerap tak selesai
   // (atau tak sempat dibaca bila app lain dibuka), jadi tunggu "selesai" tak boleh dipercayai.
-  // Kalau menu ditutup tanpa memilih app (AbortError), status dipulihkan.
+  // Android kerap menolak janji itu (AbortError) walaupun mesej sudah dihantar, jadi status TIDAK dipulihkan;
+  // ada toast Buat asal dan butang "Dah hantar" untuk tanda sendiri. Hanya ralat sebenar yang memulihkan.
   function tandaHantar(idT, kunci) {
     const t = cariTawaran(idT);
     const p = t && t.penerima.find((x) => kunciOrang(x.orang) === kunci);
     if (!p || p.status === 'deal') return null;
     const sebelum = { status: p.status, t: p.t };
-    ubah(() => { p.status = 'hantar'; p.t = Date.now(); });
+    ubah(() => { p.status = 'hantar'; p.t = Date.now(); }, 'Ditanda dihantar kepada ' + p.orang + '.');
     return sebelum;
   }
   function pulihHantar(idT, kunci, sebelum) {
@@ -3833,8 +3835,7 @@
           if (!navigator.share) { try { await navigator.clipboard.writeText(teks); toast('Mesej disalin. Tampal dalam chat.'); tandaHantar(idT, kunci); } catch (e2) { toast('Tak dapat kongsi.'); } return; }
           const sebelum = tandaHantar(idT, kunci);
           try { await navigator.share({ text: teks }); } catch (e) {
-            if (e && e.name === 'AbortError') pulihHantar(idT, kunci, sebelum);
-            else { pulihHantar(idT, kunci, sebelum); toast('Tak dapat kongsi. Guna butang Salin.'); }
+            if (!e || e.name !== 'AbortError') { pulihHantar(idT, kunci, sebelum); toast('Tak dapat kongsi. Guna butang Salin.'); }
           }
         });
         f.querySelector('[data-tw-salin]').addEventListener('click', async () => {
@@ -3853,8 +3854,7 @@
           if (fail.length && navigator.canShare && navigator.canShare({ files: fail })) d.files = fail;
           const sebelum = tandaHantar(idT, kunci);
           try { await navigator.share(d); } catch (e) {
-            pulihHantar(idT, kunci, sebelum);
-            if (!e || e.name !== 'AbortError') toast('Tak dapat kongsi. Guna butang Salin.');
+            if (!e || e.name !== 'AbortError') { pulihHantar(idT, kunci, sebelum); toast('Tak dapat kongsi. Guna butang Salin.'); }
           }
         })();
         return '';
@@ -3887,6 +3887,7 @@
     const p = t.penerima.find((x) => kunciOrang(x.orang) === b.dataset.p);
     if (!p) return;
     if (a === 'kongsi') kongsiTawaran(t, p);
+    else if (a === 'hantar') tandaHantar(t.id, kunciOrang(p.orang));
     else if (a === 'deal') ubah(() => { p.status = 'deal'; p.t = Date.now(); }, p.orang + ': Deal. Tekan Jadikan tempahan.');
     else if (a === 'tak') ubah(() => { p.status = 'tak'; p.t = Date.now(); }, p.orang + ': tak nak.');
     else if (a === 'buka') ubah(() => { p.status = 'hantar'; });
