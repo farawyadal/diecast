@@ -3787,11 +3787,22 @@
     return fail;
   }
 
+  // Tanda "Dihantar" sebaik menu kongsi dibuka: pada Android, janji navigator.share() kerap tak selesai
+  // (atau tak sempat dibaca bila app lain dibuka), jadi tunggu "selesai" tak boleh dipercayai.
+  // Kalau menu ditutup tanpa memilih app (AbortError), status dipulihkan.
   function tandaHantar(idT, kunci) {
     const t = cariTawaran(idT);
     const p = t && t.penerima.find((x) => kunciOrang(x.orang) === kunci);
-    if (!p || p.status === 'deal') return;
-    ubah(() => { p.status = 'hantar'; p.t = Date.now(); }, 'Ditanda dihantar kepada ' + p.orang + '.');
+    if (!p || p.status === 'deal') return null;
+    const sebelum = { status: p.status, t: p.t };
+    ubah(() => { p.status = 'hantar'; p.t = Date.now(); });
+    return sebelum;
+  }
+  function pulihHantar(idT, kunci, sebelum) {
+    const t = cariTawaran(idT);
+    const p = t && t.penerima.find((x) => kunciOrang(x.orang) === kunci);
+    if (!p || !sebelum || p.status !== 'hantar') return;
+    ubah(() => { p.status = sebelum.status; p.t = sebelum.t; });
   }
 
   // Kongsi: gambar + mesej ke app pilihan (WhatsApp, Messenger dan lain-lain). Tanda "Dihantar" bila selesai.
@@ -3809,7 +3820,12 @@
       lepas: (f) => {
         f.querySelector('[data-tw-teks]').addEventListener('click', async () => {
           tutup($('dlgForm'));
-          try { await navigator.share({ text: teks }); tandaHantar(idT, kunci); } catch (e) { if (!e || e.name !== 'AbortError') { try { await navigator.clipboard.writeText(teks); toast('Mesej disalin.'); } catch (e2) { toast('Tak dapat kongsi.'); } } }
+          if (!navigator.share) { try { await navigator.clipboard.writeText(teks); toast('Mesej disalin. Tampal dalam chat.'); tandaHantar(idT, kunci); } catch (e2) { toast('Tak dapat kongsi.'); } return; }
+          const sebelum = tandaHantar(idT, kunci);
+          try { await navigator.share({ text: teks }); } catch (e) {
+            if (e && e.name === 'AbortError') pulihHantar(idT, kunci, sebelum);
+            else { pulihHantar(idT, kunci, sebelum); toast('Tak dapat kongsi. Guna butang Salin.'); }
+          }
         });
         f.querySelector('[data-tw-salin]').addEventListener('click', async () => {
           tutup($('dlgForm'));
@@ -3819,21 +3835,17 @@
       hantar() {
         (async () => {
           const fail = failSedia || await sedia;
-          try {
-            if (navigator.share) {
-              const d = { text: teks };
-              if (fail.length && navigator.canShare && navigator.canShare({ files: fail })) d.files = fail;
-              await navigator.share(d);
-            } else {
-              await navigator.clipboard.writeText(teks);
-              toast('Mesej disalin. Tampal dalam chat.');
-            }
-          } catch (e) {
-            if (e && e.name === 'AbortError') return;
-            toast('Tak dapat kongsi. Guna butang Salin.');
+          if (!navigator.share) {
+            try { await navigator.clipboard.writeText(teks); toast('Mesej disalin. Tampal dalam chat.'); tandaHantar(idT, kunci); } catch (e) { toast('Tak dapat kongsi. Guna butang Salin.'); }
             return;
           }
-          tandaHantar(idT, kunci);
+          const d = { text: teks };
+          if (fail.length && navigator.canShare && navigator.canShare({ files: fail })) d.files = fail;
+          const sebelum = tandaHantar(idT, kunci);
+          try { await navigator.share(d); } catch (e) {
+            pulihHantar(idT, kunci, sebelum);
+            if (!e || e.name !== 'AbortError') toast('Tak dapat kongsi. Guna butang Salin.');
+          }
         })();
         return '';
       },
