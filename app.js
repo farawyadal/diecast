@@ -254,6 +254,7 @@
       kos: nomborAtauNull(x.kos),                 // kos J&T (RM), aku tanggung
       t: Number(x.t) || Date.now(),
       tTerima: masaAtauNull(x.tTerima),
+      dipos: x.dipos === true,                    // sudah drop/hantar? (untuk ayat mesej)
       dibuat: Number(x.dibuat) || Date.now(),
     };
   }
@@ -1051,7 +1052,7 @@
             buka: 'hantar:' + h.id,
             items: its, kad: { peringkat: false, undur: true, orang: new Set(its.map((it) => kunciOrang(it.orang))).size > 1 },
             jejak: h.cara === 'pos' && h.track ? { no: h.track, jenis: 'jnt' } : null,
-            aksi: [{ g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
+            aksi: [{ g: 'kongsiHantar', nilai: h.id, label: 'Kongsi' }, { g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
           });
         });
     } else if (tab === 'luar') {
@@ -1157,6 +1158,7 @@
     else if (g === 'serah') borangSerah(v);
     else if (g === 'ambil') { ubah(() => { v.split(',').forEach((id) => { const it = cariItem(id); if (it) it.arkib = Date.now(); }); }, 'Barang sendiri diarkibkan.'); bungaApi(); }
     else if (g === 'waHantar') waHantar(cariHantar(v));
+    else if (g === 'kongsiHantar') kongsiHantar(cariHantar(v));
     else if (g === 'terima') terimaHantar(cariHantar(v));
   }
 
@@ -2200,7 +2202,7 @@
           data.hantar.push(h);
           ids.forEach((id) => { const it = cariItem(id); if (it) it.hantarId = h.id; });
         });
-        toast(ids.length + ' item ' + (pos ? 'dipost' : 'dihantar') + ' pada ' + h.orang + '.', { label: 'WhatsApp', fn: () => waHantar(cariHantar(h.id)) });
+        toast(ids.length + ' item ' + (pos ? 'dipost' : 'dihantar') + ' pada ' + h.orang + '.', { label: 'Kongsi', fn: () => kongsiHantar(cariHantar(h.id)) });
         return '';
       },
     });
@@ -3060,21 +3062,68 @@
     bukaWa(ada.find((it) => it.tel) ? ada.find((it) => it.tel).tel : '', teks);
   }
 
-  function waHantar(h) {
-    if (!h) return;
+  // Teks mesej penghantaran. "Akan" atau "telah" ikut penanda dipos (kadang tracking dah ada, barang esok baru drop).
+  function teksHantar(h) {
     const its = itemHantar(h);
     const bk = bakiPositif(its);
     const ramai = new Set(its.map((it) => kunciOrang(it.orang))).size > 1;
     const baris = its.map((it) => '- ' + labelItem(it) + (ramai ? ' (' + it.orang + ')' : '')).join('\n');
     let teks = 'Salam ' + h.orang.split(' + ')[0] + '.\n\n';
-    if (h.cara === 'pos') teks += 'Barang telah dipos melalui J&T:\n' + baris + (h.track ? '\n\nTracking J&T: ' + h.track + '\nSemak status: ' + urlJejak(h.track, 'jnt').url : '') + '\n';
-    else teks += 'Barang akan dihantar sendiri:\n' + baris + '\n';
+    if (h.cara === 'pos') {
+      teks += 'Barang ' + (h.dipos ? 'telah' : 'akan') + ' dipos melalui J&T:\n' + baris;
+      if (h.track) {
+        teks += '\n\nTracking J&T: ' + h.track + '\nSemak status: ' + urlJejak(h.track, 'jnt').url;
+        if (!h.dipos) teks += '\n(Status akan dikemas kini selepas J&T terima bungkusan.)';
+      }
+      teks += '\n';
+    } else teks += 'Barang ' + (h.dipos ? 'telah' : 'akan') + ' dihantar sendiri:\n' + baris + '\n';
     if (bk > 0) {
       teks += '\nBaki bayaran' + (ramai ? ' (semua dalam bungkusan ini)' : '') + ': ' + rm(bk) + '\n';
       if (data.bank) teks += data.bank.trim() + '\n';
     }
     teks += '\nSila maklumkan apabila barang telah diterima. Terima kasih.';
-    bukaWa((its.find((it) => it.tel) || {}).tel || '', teks);
+    return teks;
+  }
+
+  function waHantar(h) {
+    if (!h) return;
+    bukaWa((itemHantar(h).find((it) => it.tel) || {}).tel || '', teksHantar(h));
+  }
+
+  // Butang Kongsi: pilih akan/telah, tengok mesej, kemudian hantar ke app pilihan (WhatsApp, Messenger dan lain-lain).
+  function kongsiHantar(h) {
+    if (!h) return;
+    const pos = h.cara === 'pos';
+    const sudah = (v) => Object.assign({}, h, { dipos: v === 'telah' });
+    const tel = (itemHantar(h).find((it) => it.tel) || {}).tel || '';
+    borang({
+      tajuk: 'Kongsi ' + (pos ? 'tracking' : 'hantaran') + ' ' + h.orang,
+      html: '<fieldset class="pilih-kat dua-pilih"><legend>Status</legend>' +
+        '<label><input type="radio" name="status" value="akan"' + (h.dipos ? '' : ' checked') + '><span>Akan ' + (pos ? 'dipos' : 'dihantar') + '</span></label>' +
+        '<label><input type="radio" name="status" value="telah"' + (h.dipos ? ' checked' : '') + '><span>Telah ' + (pos ? 'dipos' : 'dihantar') + '</span></label></fieldset>' +
+        '<pre class="pratonton" translate="no" id="pratontonMesej"></pre>' +
+        '<div class="aksi-kongsi"><button class="btn" type="button" data-kongsi="salin">Salin</button>' +
+        (tel ? '<button class="btn" type="button" data-kongsi="wa">' + IKON_WA + 'WhatsApp</button>' : '') + '</div>',
+      simpan: 'Kongsi',
+      lepas: (f) => {
+        const teks = () => teksHantar(sudah(f.status.value));
+        const segar = () => { $('pratontonMesej').textContent = teks(); };
+        f.querySelectorAll('[name="status"]').forEach((r) => r.addEventListener('change', segar));
+        f.querySelectorAll('[data-kongsi]').forEach((b) => b.addEventListener('click', () => {
+          ubah(() => { h.dipos = f.status.value === 'telah'; });
+          if (b.dataset.kongsi === 'salin') { try { navigator.clipboard.writeText(teks()); toast('Mesej disalin.'); } catch (e) { toast('Tak dapat salin. Guna butang Kongsi.'); } } else bukaWa(tel, teks());
+          tutup($('dlgForm'));
+        }));
+        segar();
+      },
+      hantar(f) {
+        ubah(() => { h.dipos = f.status.value === 'telah'; });
+        const teks = teksHantar(h);
+        if (navigator.share) navigator.share({ text: teks }).catch(() => { /* batal */ });
+        else salin(teks);
+        return '';
+      },
+    });
   }
 
   /* ---------- Untung rugi ---------- */

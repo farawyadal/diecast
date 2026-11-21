@@ -473,6 +473,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .kaki.dalam { padding-top: 14px; }
 
+/* Kongsi tracking */
+.pratonton { background: var(--latar-2, rgba(127,127,127,.12)); border-radius: 12px; padding: 12px; margin: 10px 0; font: inherit; font-size: .88rem; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow: auto; }
+.aksi-kongsi { display: flex; gap: 8px; flex-wrap: wrap; }
+.aksi-kongsi .btn { flex: 1 1 120px; }
+
 /* ---------- Butang ---------- */
 
 .btn {
