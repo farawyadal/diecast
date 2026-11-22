@@ -206,6 +206,7 @@
       hantarId: x.hantarId ? String(x.hantarId) : null,
       arkib: masaAtauNull(x.arkib),
       maklumOrder: masaAtauNull(x.maklumOrder),    // bila pelanggan dimaklumkan order dibuat
+      maklumIngat: masaAtauNull(x.maklumIngat),    // bila peringatan bayaran terakhir dihantar
       lama: !!x.lama,
       anggaran: !!x.anggaran,
       gambar: String(x.gambar || '').slice(0, 300000), // pautan gambar atau gambar kecil (data URL)                     // kos RM ialah anggaran (item lama tanpa rekod order)                             // dari Excel: OTW tanpa butiran perjalanan
@@ -2432,7 +2433,12 @@
     html += '<button class="btn utama penuh" type="button" data-aksi="' + aU + '">' + esc(lU) + '</button>';
     html += '<button class="btn" type="button" data-aksi="bayar">+ Bayaran</button>';
     html += bk > 0 ? '<button class="btn hijau" type="button" data-aksi="penuh">Bayar penuh</button>' : '<button class="btn" type="button" data-aksi="edit">Edit</button>';
-    if (it.kat === 'jual' && bk > 0) html += '<button class="btn penuh btn-wa" type="button" data-aksi="wa">' + IKON_WA + 'WhatsApp minta baki</button>';
+    if (it.kat === 'jual' && it.orderId && !it.arkib) {
+      const ingat = !!it.maklumOrder && bk > 0;
+      html += '<button class="btn penuh btn-wa" type="button" data-aksi="' + (ingat ? 'ingat' : 'maklum') + '">' + IKON_WA + (ingat ? 'Peringatan bayaran' : 'Maklumkan pelanggan') + '</button>';
+      if (ingat) html += '<button class="btn penuh" type="button" data-aksi="maklum">Maklumkan semula</button>';
+      if (it.maklumOrder) html += '<p class="nota penuh">✓ Dimaklumkan ' + tarikh(it.maklumOrder) + (it.maklumIngat ? ' · diingatkan ' + tarikh(it.maklumIngat) : '') + '</p>';
+    }
     html += '</div>';
 
     if (!luar) {
@@ -2525,7 +2531,8 @@
     } else if (a === 'penuh') {
       const bk = baki(it);
       ubah(() => { it.bayaran.push({ id: idBaru(), amaun: bk, t: Date.now(), nota: 'Bayar penuh' }); }, 'Bayaran ' + rm(bk) + ' direkod.');
-    } else if (a === 'wa') waBaki([it]);
+    } else if (a === 'maklum') bukaMaklumItem(it.id);
+    else if (a === 'ingat') kongsiPeringatan(it.id);
     else if (a === 'padam') {
       const ok = await sahkan({
         tajuk: 'Padam item ini?',
@@ -4067,18 +4074,63 @@
   }
 
   let maklumOrderId = null;
-  function bukaMaklumOrder(id) {
-    maklumOrderId = id;
+  let maklumItemId = null;
+  let maklumBalik = null;
+  // Tutup helaian di atas panel (butiran item/order) supaya skrin Maklumkan tidak tersorok di belakangnya.
+  function bukaPanelMaklum(lukis) {
+    const balik = $('dlgPanel').open && panelLukis !== paparMaklumOrder ? panelLukis : null;
+    ['dlgButir', 'dlgOrder'].forEach((d) => tutup($(d)));
+    maklumBalik = balik || (maklumBalik && $('dlgPanel').open ? maklumBalik : null);
     panelLukis = paparMaklumOrder;
-    paparMaklumOrder();
+    lukis();
     buka($('dlgPanel'));
   }
-  function paparMaklumOrder() {
+  function bukaMaklumOrder(id) {
+    maklumOrderId = id; maklumItemId = null;
+    bukaPanelMaklum(paparMaklumOrder);
+  }
+  function bukaMaklumItem(id) {
+    maklumItemId = id; maklumOrderId = null;
+    bukaPanelMaklum(paparMaklumOrder);
+  }
+  function senaraiMaklum() {
+    if (maklumItemId) {
+      const it = cariItem(maklumItemId);
+      return it && it.kat === 'jual' ? [{ k: kunciOrang(it.orang), orang: it.orang, its: [it] }] : [];
+    }
     const o = cariOrder(maklumOrderId);
-    if (!o) { tutup($('dlgPanel')); return; }
+    return o ? kumpulOrderPelanggan(o) : [];
+  }
+  function teksPeringatan(p) {
+    const ada = p.its.filter((it) => baki(it) > 0);
+    return 'Salam Bang ' + p.orang + '.\n\nPeringatan, baki bayaran ' + rm(bakiPositif(ada)) + ' untuk:\n' + ada.map((it) => '- ' + labelItem(it)).join('\n') + '\n\nTerima kasih.';
+  }
+  function dialogMaklum(p, jenis) {
+    const st = statusBayarPel(p.its);
+    const qr = st.jenis !== 'lunas' && !tetapKunci(p.orang) && data.qr;
+    dialogKongsi({
+      tajuk: (jenis === 'ingat' ? 'Peringatan kepada ' : 'Kongsi kepada ') + p.orang,
+      teks: jenis === 'ingat' ? teksPeringatan(p) : teksOrder(p, jenis),
+      tel: (p.its.find((it) => it.tel) || {}).tel || '',
+      nota: qr ? 'Gambar QR dihantar bersama mesej.' : '',
+      dapatFail: qr ? () => failDariRef(data.qr, 'qr') : null,
+      bila: () => ubah(() => {
+        p.its.forEach((it) => { const x = cariItem(it.id); if (x) { if (jenis === 'ingat') x.maklumIngat = Date.now(); else x.maklumOrder = Date.now(); } });
+      }),
+    });
+  }
+  function kongsiPeringatan(id) {
+    const it = cariItem(id);
+    if (!it || baki(it) <= 0) { toast('Tiada baki.'); return; }
+    dialogMaklum({ k: kunciOrang(it.orang), orang: it.orang, its: [it] }, 'ingat');
+  }
+  function paparMaklumOrder() {
+    const o = maklumOrderId ? cariOrder(maklumOrderId) : null;
+    const it0 = maklumItemId ? cariItem(maklumItemId) : null;
+    if (!o && !it0) { tutup($('dlgPanel')); return; }
     const CIP = { lunas: ['Lunas', 'st-lunas'], depo: ['Deposit', 'st-depo'], belum: ['Belum bayar', 'st-belum'], tiada: ['Tiada harga', 'st-tiada'] };
-    let html = '<h2>Maklumkan order dibuat</h2><p class="nota">' + esc(labelOrder(o)) + '. Satu mesej bagi setiap pelanggan.</p>';
-    const sen = kumpulOrderPelanggan(o);
+    let html = '<h2>Maklumkan order dibuat</h2><p class="nota">' + (o ? esc(labelOrder(o)) + '. Satu mesej bagi setiap pelanggan.' : esc(labelItem(it0)) + '.') + '</p>';
+    const sen = senaraiMaklum();
     if (!sen.length) html += '<p class="kosong">Tiada pelanggan dalam order ini.</p>';
     sen.forEach((p) => {
       const st = statusBayarPel(p.its);
@@ -4089,31 +4141,26 @@
       if (st.jenis === 'lunas' || st.jenis === 'depo') b = btn(st.jenis, 'Kongsi', sudah ? '' : 'utama');
       else if (st.jenis === 'belum') b = btn('belum', 'Belum bayar', sudah ? '' : 'utama') + btn('tangguh', 'Minta tangguh');
       else b = '<span class="nota">Isi harga item dahulu.</span>';
+      if (sudah && st.baki > 0) b += btn('ingat', 'Peringatan bayaran', 'utama');
+      const ingat = p.its.some((it) => it.maklumIngat);
       html += '<div class="tw-org-baris"><div class="tw-org-atas"><b>' + esc(p.orang) + '</b>' +
         '<span class="pil ' + CIP[st.jenis][1] + '">' + CIP[st.jenis][0] + (st.jenis === 'depo' ? ' ' + rm(st.bayar) : '') + '</span>' +
-        (qr ? '<span class="pil st-tiada">+ QR</span>' : '') + (sudah ? '<span class="pil st-lunas">✓ Dimaklumkan</span>' : '') + '</div>' +
+        (qr ? '<span class="pil st-tiada">+ QR</span>' : '') + (sudah ? '<span class="pil st-lunas">✓ Dimaklumkan</span>' : '') + (ingat ? '<span class="pil st-depo">Diingatkan</span>' : '') + '</div>' +
         '<div class="baris-btn">' + b + '</div>' +
         (qr && !data.qr ? '<p class="nota">Belum ada QR. Tambah dalam Tetapan, Cara bayar.</p>' : '') + '</div>';
     });
-    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-mk-tutup="1">Tutup</button></div>';
     $('panelIsi').innerHTML = html;
   }
   $('panelIsi').addEventListener('click', (e) => {
+    if (e.target.closest('[data-mk-tutup]')) {
+      if (maklumBalik) { const l = maklumBalik; maklumBalik = null; panelLukis = l; l(); } else tutup($('dlgPanel'));
+      return;
+    }
     const b = e.target.closest('[data-mo]');
     if (!b) return;
-    const o = cariOrder(maklumOrderId);
-    const p = o && kumpulOrderPelanggan(o).find((x) => x.k === b.dataset.k);
-    if (!p) return;
-    const st = statusBayarPel(p.its);
-    const qr = st.jenis !== 'lunas' && !tetapKunci(p.orang) && data.qr;
-    dialogKongsi({
-      tajuk: 'Kongsi kepada ' + p.orang,
-      teks: teksOrder(p, b.dataset.mo),
-      tel: (p.its.find((it) => it.tel) || {}).tel || '',
-      nota: qr ? 'Gambar QR dihantar bersama mesej.' : '',
-      dapatFail: qr ? () => failDariRef(data.qr, 'qr') : null,
-      bila: () => ubah(() => { p.its.forEach((it) => { const x = cariItem(it.id); if (x) x.maklumOrder = Date.now(); }); }),
-    });
+    const p = senaraiMaklum().find((x) => x.k === b.dataset.k);
+    if (p) dialogMaklum(p, b.dataset.mo);
   });
 
   /* ---------- Tetapan: cara bayar ---------- */

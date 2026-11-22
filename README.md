@@ -118,3 +118,8 @@ Kali pertama buka, tekan **Import senarai** dan pilih `senarai-awal.json`. Fail 
 Data disimpan dalam browser peranti itu, dan dalam Google Drive kalau disambung. Tak ada data disimpan di GitHub. Tanpa Drive, sekali-sekala tekan **Simpan salinan** (gambar disertakan).
 
 Gambar disimpan berasingan daripada data utama: dalam IndexedDB peranti, dan satu fail bagi setiap gambar dalam folder apps Google Drive. Item hanya simpan rujukan, jadi data utama kekal kecil. Gambar yang sama (contoh: item bernama sama) disimpan sekali sahaja. Saiz storan ditunjuk dalam tiga titik > **Data**.
+
+### v36: Maklumkan dari kad item
+- Kad item (jualan) ada butang **Maklumkan pelanggan**. Bila dah dimaklumkan tapi baki masih ada, butang utama jadi **Peringatan bayaran**, dengan pilihan **Maklumkan semula**.
+- Butang "WhatsApp minta baki" pada kad item diganti.
+- Pembetulan: menu Notify dalam Order CM kini keluar di atas butiran order (sebelum ini tersorok di belakang). Selepas Tutup, kembali ke senarai Order CM.
