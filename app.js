@@ -56,7 +56,7 @@
     : ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   const AKU = 'AKU';
 
-  let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], sale: [], tawaran: [], caj: {}, bank: '', kadar: null };
+  let data = { v: 2, diubah: 0, items: [], orders: [], kotak: [], hantar: [], sale: [], tawaran: [], caj: {}, tetap: ['FIRDAUS', 'AZLAN', 'NOR AZLAN', 'NOR AZLAN (FB)', 'HARMIZAN'], qr: '', bank: '', kadar: null };
   let tetapan = { tema: 'sistem', tab: 'beli', status: 'semua', akaun: 'fa.rawyadal', bahasa: BAHASA };
   let cari = '';
 
@@ -205,6 +205,7 @@
       kotakId: x.kotakId ? String(x.kotakId) : null,
       hantarId: x.hantarId ? String(x.hantarId) : null,
       arkib: masaAtauNull(x.arkib),
+      maklumOrder: masaAtauNull(x.maklumOrder),    // bila pelanggan dimaklumkan order dibuat
       lama: !!x.lama,
       anggaran: !!x.anggaran,
       gambar: String(x.gambar || '').slice(0, 300000), // pautan gambar atau gambar kecil (data URL)                     // kos RM ialah anggaran (item lama tanpa rekod order)                             // dari Excel: OTW tanpa butiran perjalanan
@@ -255,6 +256,9 @@
       t: Number(x.t) || Date.now(),
       tTerima: masaAtauNull(x.tTerima),
       dipos: x.dipos === true,                    // sudah drop/hantar? (untuk ayat mesej)
+      tDrop: masaAtauNull(x.tDrop),
+      maklumTracking: masaAtauNull(x.maklumTracking),
+      maklumDrop: masaAtauNull(x.maklumDrop),
       dibuat: Number(x.dibuat) || Date.now(),
     };
   }
@@ -347,6 +351,9 @@
       sale: (Array.isArray(j.sale) ? j.sale : []).map(bersihSale).filter(Boolean),
       tawaran: (Array.isArray(j.tawaran) ? j.tawaran : []).map(bersihTawaran).filter(Boolean),
       caj: bersihCaj(j.caj),
+      // Pelanggan tetap tidak dihantar QR / maklumat bank. Sekali sahaja diisi awal.
+      tetap: Array.isArray(j.tetap) ? [...new Set(j.tetap.map((k) => kunciOrang(k)).filter(Boolean))].slice(0, 200) : ['FIRDAUS', 'AZLAN', 'NOR AZLAN', 'NOR AZLAN (FB)', 'HARMIZAN'],
+      qr: /^(g:|https:\/\/)/.test(j.qr || '') ? String(j.qr).slice(0, 300) : '',
       bank: String(j.bank || '').slice(0, 300),
       kadar: nomborAtauNull(j.kadar) === null ? null : Math.round(Number(j.kadar) * 10000) / 10000,
       markup: nomborAtauNull(j.markup) || 0,      // caj tukaran kad (%) atas kadar pasaran
@@ -356,7 +363,7 @@
 
   const eksportData = () => ({
     app: 'diecast', v: 2, diubah: data.diubah, items: data.items, orders: data.orders, kotak: data.kotak,
-    hantar: data.hantar, sale: data.sale, tawaran: data.tawaran, caj: data.caj, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
+    hantar: data.hantar, sale: data.sale, tawaran: data.tawaran, caj: data.caj, tetap: data.tetap, qr: data.qr, bank: data.bank, kadar: data.kadar, markup: data.markup || 0,
   });
 
   function muat() {
@@ -508,22 +515,23 @@
     const atas = tindan.length ? tindan[tindan.length - 1] : document.body;
     if (t.parentElement !== atas) atas.appendChild(t);
   }
-  function toast(teks, btn) {
+  function toast(teks, btn, btn2) {
     const t = $('toast');
     letakToast();
     $('toastTeks').textContent = teks;
-    const b = $('toastBtn');
-    if (btn) {
-      b.textContent = btn.label;
-      b.hidden = false;
-      b.onclick = () => { t.hidden = true; btn.fn(); };
-    } else {
-      b.hidden = true;
-      b.onclick = null;
-    }
+    [[$('toastBtn'), btn], [$('toastBtn2'), btn2]].forEach(([b, x]) => {
+      if (x) {
+        b.textContent = x.label;
+        b.hidden = false;
+        b.onclick = () => { t.hidden = true; x.fn(); };
+      } else {
+        b.hidden = true;
+        b.onclick = null;
+      }
+    });
     t.hidden = false;
     clearTimeout(toastMasa);
-    toastMasa = setTimeout(() => { t.hidden = true; }, btn ? 7000 : 3000);
+    toastMasa = setTimeout(() => { t.hidden = true; }, btn || btn2 ? 7000 : 3000);
   }
 
   /* ---------- Dialog dan butang Back telefon ---------- */
@@ -601,10 +609,11 @@
     if ($('dlgKotak').open) paparKotak();
     if ($('dlgKastemer').open) paparKastemer(kastemerKunci);
     if ($('dlgPanel').open && panelLukis) panelLukis();
+    if (gateKemas && $('dlgForm').open) gateKemas();
   }
 
   // Simpan, lukis semula, dan tawar "Buat asal" yang memulihkan salinan data sebelum perubahan.
-  function ubah(fn, mesej) {
+  function ubah(fn, mesej, tambah) {
     const sebelum = JSON.stringify(eksportData());
     const hasil = fn();
     simpan();
@@ -613,7 +622,7 @@
       toast(typeof mesej === 'function' ? mesej(hasil) : mesej, {
         label: 'Buat asal',
         fn: () => { data = bersihData(JSON.parse(sebelum)); simpan(); segarSemua(); toast('Dibatalkan.'); },
-      });
+      }, tambah);
     }
     return hasil;
   }
@@ -1075,6 +1084,8 @@
         });
       });
     } else if (tab === 'hantar') {
+      const belumDrop = data.hantar.filter((h) => h.cara === 'pos' && !h.dipos && !h.tTerima && itemHantar(h).length).length;
+      if (belumDrop) html += '<div class="banner-drop" role="status">' + belumDrop + ' parcel belum didrop di J&amp;T</div>';
       const kump = new Map();
       nampak.forEach((it) => {
         if (!kump.has(it.hantarId)) kump.set(it.hantarId, []);
@@ -1086,11 +1097,13 @@
           html += htmlKumpulan({
             tajuk: h.orang,
             sub: (h.cara === 'pos' ? 'J&T' : 'Hantar sendiri') + ' · ' + tarikh(h.t) +
+              (h.cara === 'pos' ? ' · ' + (h.dipos ? 'telah dipos' : '<b>akan dipos</b>') : '') +
+              ((h.dipos ? h.maklumDrop : h.maklumTracking) ? ' · ✓ dimaklumkan' : '') +
               (bk > 0 ? ' · baki <b>' + rm(bk) + '</b>' : ''),
             buka: 'hantar:' + h.id,
             items: its, kad: { peringkat: false, undur: true, orang: new Set(its.map((it) => kunciOrang(it.orang))).size > 1 },
             jejak: h.cara === 'pos' && h.track ? { no: h.track, jenis: 'jnt' } : null,
-            aksi: [{ g: 'kongsiHantar', nilai: h.id, label: 'Kongsi' }, { g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
+            aksi: [...(h.cara === 'pos' && !h.dipos ? [{ g: 'dropHantar', nilai: h.id, label: 'Dah drop di J&T', kelas: 'utama' }] : []), { g: 'kongsiHantar', nilai: h.id, label: 'Kongsi' }, { g: 'waHantar', nilai: h.id, label: IKON_WA + 'Mesej' }, { g: 'terima', nilai: h.id, label: 'Diterima', kelas: 'utama' }],
           });
         });
     } else if (tab === 'luar') {
@@ -1197,6 +1210,7 @@
     else if (g === 'ambil') { ubah(() => { v.split(',').forEach((id) => { const it = cariItem(id); if (it) it.arkib = Date.now(); }); }, 'Barang sendiri diarkibkan.'); bungaApi(); }
     else if (g === 'waHantar') waHantar(cariHantar(v));
     else if (g === 'kongsiHantar') kongsiHantar(cariHantar(v));
+    else if (g === 'dropHantar') dropHantar(cariHantar(v));
     else if (g === 'terima') terimaHantar(cariHantar(v));
   }
 
@@ -1226,6 +1240,7 @@
 
   // o: { tajuk, nota, html, simpan, hantar(form) -> mesej ralat atau '' , lepas(form) }
   let hantarBorang = null;
+  let gateKemas = null; // dikemas bila data berubah semasa borang Penghantaran terbuka
   let lepasBuka = null;
   function borang(o) {
     const f = $('formX');
@@ -1234,6 +1249,7 @@
       '<div class="aksi-bawah"><button class="btn" type="button" data-batal="1">Batal</button>' +
       '<button class="btn utama" type="submit">' + esc(o.simpan || 'Simpan') + '</button></div>';
     hantarBorang = o.hantar;
+    gateKemas = null;
     lepasBuka = o.lepas || null;
     buka($('dlgForm'));
     $('dlgForm').scrollTop = 0;
@@ -1257,6 +1273,16 @@
     const ralat = hantarBorang(e.target);
     if (ralat) { $('formRalat').textContent = ralat; return; }
     tutup($('dlgForm'));
+  });
+  $('formX').addEventListener('click', (e) => {
+    const g = e.target.closest('[data-gate]');
+    if (!g) return;
+    const its = nilaiPilih($('formX'), 'item').map(cariItem).filter((it) => it && it.kat === 'jual' && baki(it) > 0);
+    if (!its.length) return;
+    const k = kunciOrang(its[0].orang);
+    const satu = its.filter((it) => kunciOrang(it.orang) === k);
+    if (g.dataset.gate === 'minta') waBaki(satu);
+    else bukaBayar(satu[0]);
   });
   $('formX').addEventListener('input', (e) => {
     if (!e.target.matches('[data-tapis-pilih]')) return;
@@ -1635,7 +1661,8 @@
           if (o.mata === 'USD' && o.kadar >= 2 && o.kadar <= 10) data.kadar = o.kadar;
           if (o.akaun) tetapan.akaun = o.akaun;
           simpanTetapan();
-        }, 'Order ' + (o.no || '') + ' disimpan: ' + (tag.length + baris.length) + ' item.');
+        }, 'Order ' + (o.no || '') + ' disimpan: ' + (tag.length + baris.length) + ' item.',
+        kumpulOrderPelanggan(o).length ? { label: 'Maklumkan', fn: () => bukaMaklumOrder(o.id) } : null);
         return '';
       },
     });
@@ -1789,6 +1816,7 @@
     const belum = its.filter((it) => peringkat(it) === 'beli');
     html += '<div class="grid-aksi">' +
       (belum.length ? '<button class="btn utama penuh" type="button" data-aksi="declare">Declare ke hub (' + belum.length + ' item)</button>' : '') +
+      (itemOrder(o).some((it) => it.kat === 'jual') ? '<button class="btn" type="button" data-aksi="maklum">Maklumkan pelanggan</button>' : '') +
       '<button class="btn" type="button" data-aksi="tag">Tag / ubah item</button>' +
       '<button class="btn" type="button" data-aksi="edit">Edit order</button>' +
       '<button class="btn bahaya penuh" type="button" data-aksi="padam">Padam order</button></div>';
@@ -1807,6 +1835,7 @@
     const a = b.dataset.aksi;
     if (a === 'tutup') tutup($('dlgOrder'));
     else if (a === 'declare') borangDeclare(itemOrder(o).filter((it) => peringkat(it) === 'beli').map((it) => it.id));
+    else if (a === 'maklum') bukaMaklumOrder(o.id);
     else if (a === 'tag') borangTagOrder(o);
     else if (a === 'edit') borangOrder(o);
     else if (a === 'kadarAuto') {
@@ -2214,8 +2243,10 @@
       html: '<fieldset class="pilih-kat dua-pilih"><legend>Cara</legend>' +
         '<label><input type="radio" name="cara" value="pos" checked><span>Post J&amp;T</span></label>' +
         '<label><input type="radio" name="cara" value="sendiri"><span>Hantar sendiri</span></label></fieldset>' +
+        '<div id="gateBaki"></div>' +
         '<div data-pos><div class="dua">' + medanTeks('track', 'Tracking J&amp;T', '', ' maxlength="60" data-fokus') +
-        medanNombor('kos', 'Kos J&amp;T (RM) <small>(ditanggung sendiri)</small>', '') + '</div>' + butangImbas('track') + '</div>' +
+        medanNombor('kos', 'Kos J&amp;T (RM) <small>(ditanggung sendiri)</small>', '') + '</div>' + butangImbas('track') +
+        '<label class="tanda"><input type="checkbox" name="terusDrop"> Terus drop hari ini <small>(tracking dibuat dan parcel didrop hari yang sama)</small></label></div>' +
         medanTarikh('t', 'Tarikh', Date.now(), true) +
         '<h3>Item ' + esc(nama) + '</h3>' + senaraiPilih('item', pilihanItem(calon, pilih)) +
         (lain.length ? '<h3>Pelanggan lain, alamat sama? <small>(pilihan)</small></h3><p class="nota">Tanda item pelanggan lain yang dihantar dalam bungkusan yang sama.</p>' +
@@ -2225,6 +2256,17 @@
         const segar = () => { f.querySelector('[data-pos]').hidden = f.cara.value !== 'pos'; };
         f.querySelectorAll('[name="cara"]').forEach((r) => r.addEventListener('change', segar));
         segar();
+        // Baki mesti lunas dahulu sebelum tracking J&T (hantar sendiri tidak dikunci).
+        const gate = () => {
+          const its = nilaiPilih(f, 'item').map(cariItem).filter((it) => it && it.kat === 'jual' && baki(it) > 0);
+          const kunci = f.cara.value === 'pos' && its.length;
+          f.track.disabled = !!kunci;
+          $('gateBaki').innerHTML = kunci ? '<div class="amaran-baki">Baki ' + rm(bakiPositif(its)) + ' belum dijelaskan. Tracking J&amp;T boleh diisi selepas bayaran lengkap.' +
+            '<div class="baris-btn"><button type="button" class="btn kecil" data-gate="minta">Minta baki</button><button type="button" class="btn kecil utama" data-gate="bayar">Rekod bayaran</button></div></div>' : '';
+        };
+        f.addEventListener('change', gate);
+        gateKemas = gate;
+        gate();
       },
       hantar(f) {
         const ids = nilaiPilih(f, 'item');
@@ -2232,9 +2274,12 @@
         const nama2 = [...new Set(ids.map((id) => cariItem(id)).filter(Boolean).map((it) => it.orang))];
         nama2.sort((a, b) => (kunciOrang(b) === kunci) - (kunciOrang(a) === kunci));
         const pos = f.cara.value === 'pos';
+        const bakiAda = ids.map(cariItem).filter((it) => it && it.kat === 'jual' && baki(it) > 0);
+        if (pos && bakiAda.length) return 'Baki ' + rm(bakiPositif(bakiAda)) + ' belum dijelaskan. Tracking J&T boleh diisi selepas bayaran lengkap.';
+        const drop = pos && f.terusDrop.checked;
         const h = bersihHantar({
           id: idBaru(), orang: nama2.join(' + '), cara: f.cara.value, track: pos ? f.track.value : '', kos: pos ? f.kos.value : null,
-          t: dariInput(f.t.value), dibuat: Date.now(),
+          t: dariInput(f.t.value), dibuat: Date.now(), dipos: drop, tDrop: drop ? Date.now() : null,
         });
         ubah(() => {
           data.hantar.push(h);
@@ -2271,13 +2316,34 @@
     });
   }
 
-  function terimaHantar(h) {
-    if (!h) return;
+  function selesaiHantar(h) {
     ubah(() => {
       h.tTerima = Date.now();
       itemHantar(h).forEach((it) => { it.arkib = h.tTerima; });
     }, h.orang + ' sahkan terima. Item dipindah ke Arkib.');
     bungaApi();
+  }
+
+  // Tekan Diterima: tanya sama ada nak maklumkan pelanggan (kalau pelanggan sendiri dah beritahu, Arkib sahaja).
+  function terimaHantar(h) {
+    if (!h) return;
+    if (h.cara !== 'pos') { selesaiHantar(h); return; }
+    const teks = 'Salam Bang ' + h.orang.split(' + ')[0] + '.\n\nBerdasarkan semakan status J&T, barang telah diterima. Terima kasih.';
+    borang({
+      tajuk: 'Maklumkan pelanggan?',
+      nota: 'Barang ' + esc(h.orang) + ' sudah diterima. Mesej akan dihantar:',
+      html: '<pre class="pratonton" translate="no">' + esc(teks) + '</pre>' +
+        '<div class="aksi-kongsi"><button class="btn" type="button" data-terima-sahaja>Arkib sahaja</button></div>',
+      simpan: 'Kongsi, kemudian arkib',
+      lepas: (f) => {
+        f.querySelector('[data-terima-sahaja]').addEventListener('click', () => { tutup($('dlgForm')); selesaiHantar(h); });
+      },
+      hantar() {
+        selesaiHantar(h);
+        kongsiSistem(teks, []);
+        return '';
+      },
+    });
   }
 
   /* ---------- Item: butiran ---------- */
@@ -2539,7 +2605,7 @@
   const urlGambar = new Map(); // cincang -> object URL
   let siapGambar = Promise.resolve(); // selesai bila gambar dalam peranti sudah dimuat
   // Semua gambar dalam simpanan yang masih digunakan (item dan tawaran).
-  const semuaHashGambar = () => new Set([...data.items.map((it) => hashGambar(it.gambar)), ...data.tawaran.flatMap((t) => t.gambar.map(hashGambar))].filter(Boolean));
+  const semuaHashGambar = () => new Set([hashGambar(data.qr), ...data.items.map((it) => hashGambar(it.gambar)), ...data.tawaran.flatMap((t) => t.gambar.map(hashGambar))].filter(Boolean));
   const hashGambar = (v) => (typeof v === 'string' && v.startsWith(AWALAN_GB) ? v.slice(AWALAN_GB.length) : '');
   function srcGambar(v) {
     if (!v) return '';
@@ -3093,13 +3159,19 @@
   function waBaki(its) {
     const ada = its.filter((it) => baki(it) > 0);
     if (!ada.length) { toast('Tiada baki.'); return; }
+    const orang = ada[0].orang;
     const jumlah = bakiPositif(ada);
     const sampai = ada.every((it) => peringkat(it) === 'sampai');
-    let teks = 'Salam Bang ' + ada[0].orang + '.\n\n' + (sampai ? 'Barang pre-order telah tiba. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
+    const tetap = tetapKunci(orang);
+    let teks = 'Salam Bang ' + orang + '.\n\n' + (sampai ? 'Barang pre-order telah tiba. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
       (ada.length > 1 ? '\n\nJumlah baki: ' + rm(jumlah) : '') + '\n';
-    if (data.bank) teks += '\n' + data.bank.trim() + '\n';
+    if (data.bank && !tetap) teks += '\n' + data.bank.trim() + '\n';
     teks += '\nTerima kasih.';
-    bukaWa(ada.find((it) => it.tel) ? ada.find((it) => it.tel).tel : '', teks);
+    dialogKongsi({
+      tajuk: 'Kongsi baki kepada ' + orang, teks, tel: (ada.find((it) => it.tel) || {}).tel || '',
+      nota: !tetap && data.qr ? 'Gambar QR dihantar bersama mesej.' : '',
+      dapatFail: !tetap && data.qr ? () => failDariRef(data.qr, 'qr') : null,
+    });
   }
 
   // Teks mesej penghantaran. "Akan" atau "telah" ikut penanda dipos (kadang tracking dah ada, barang esok baru drop).
@@ -3119,14 +3191,28 @@
     } else teks += 'Barang ' + (h.dipos ? 'telah' : 'akan') + ' dihantar sendiri:\n' + baris + '\n';
     if (bk > 0) {
       teks += '\nBaki bayaran' + (ramai ? ' (semua dalam bungkusan ini)' : '') + ': ' + rm(bk) + '\n';
-      if (data.bank) teks += data.bank.trim() + '\n';
+      if (data.bank && !tetapKunci(h.orang.split(' + ')[0])) teks += data.bank.trim() + '\n';
     }
     teks += '\nSila maklumkan apabila barang telah diterima. Terima kasih.';
     return teks;
   }
 
+  // Simpan status akan/telah dipos dan tanda pelanggan sudah dimaklumkan peringkat itu.
+  function tandaMaklumHantar(h, telah) {
+    ubah(() => {
+      h.dipos = telah;
+      if (telah) { h.tDrop = h.tDrop || Date.now(); h.maklumDrop = Date.now(); } else h.maklumTracking = Date.now();
+    });
+  }
+  function dropHantar(h) {
+    if (!h) return;
+    ubah(() => { h.dipos = true; h.tDrop = Date.now(); }, 'Ditanda telah dipos.');
+    kongsiHantar(h);
+  }
+
   function waHantar(h) {
     if (!h) return;
+    tandaMaklumHantar(h, !!h.dipos);
     bukaWa((itemHantar(h).find((it) => it.tel) || {}).tel || '', teksHantar(h));
   }
 
@@ -3150,14 +3236,14 @@
         const segar = () => { $('pratontonMesej').textContent = teks(); };
         f.querySelectorAll('[name="status"]').forEach((r) => r.addEventListener('change', segar));
         f.querySelectorAll('[data-kongsi]').forEach((b) => b.addEventListener('click', () => {
-          ubah(() => { h.dipos = f.status.value === 'telah'; });
+          tandaMaklumHantar(h, f.status.value === 'telah');
           if (b.dataset.kongsi === 'salin') { try { navigator.clipboard.writeText(teks()); toast('Mesej disalin.'); } catch (e) { toast('Tak dapat salin. Guna butang Kongsi.'); } } else bukaWa(tel, teks());
           tutup($('dlgForm'));
         }));
         segar();
       },
       hantar(f) {
-        ubah(() => { h.dipos = f.status.value === 'telah'; });
+        tandaMaklumHantar(h, f.status.value === 'telah');
         const teks = teksHantar(h);
         if (navigator.share) navigator.share({ text: teks }).catch(() => { /* batal */ });
         else salin(teks);
@@ -3895,6 +3981,176 @@
     else if (a === 'buang') ubah(() => { t.penerima = t.penerima.filter((x) => x !== p); }, p.orang + ' dibuang daripada tawaran.');
   });
   $('btnTawaran').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaTawaran, 0); });
+
+  /* ---------- Maklumkan pelanggan: order dibuat, cara bayar ---------- */
+  /*
+    Satu pelanggan satu mesej, ikut status bayaran masing-masing (lunas, deposit, belum bayar, minta tangguh).
+    Pelanggan tetap tidak dihantar QR / maklumat bank; semua yang lain dapat gambar QR bersama mesej
+    bila ada bayaran perlu dibuat. Selepas dikongsi, item ditanda "Dimaklumkan".
+  */
+  const tetapKunci = (orang) => (data.tetap || []).includes(kunciOrang(orang));
+
+  async function failDariRef(ref, nama) {
+    const h = hashGambar(ref);
+    if (!h) return [];
+    try {
+      const blob = await bacaBlob(h);
+      return blob ? [new File([blob], (nama || 'gambar') + '.' + ((blob.type || '').includes('png') ? 'png' : 'jpg'), { type: blob.type || 'image/jpeg' })] : [];
+    } catch (e) { return []; }
+  }
+
+  async function kongsiSistem(teks, fail) {
+    if (!navigator.share) {
+      try { await navigator.clipboard.writeText(teks); toast('Mesej disalin. Tampal dalam chat.'); } catch (e) { toast('Tak dapat kongsi.'); }
+      return;
+    }
+    const d = { text: teks };
+    if (fail && fail.length && navigator.canShare && navigator.canShare({ files: fail })) d.files = fail;
+    try { await navigator.share(d); } catch (e) { if (!e || e.name !== 'AbortError') toast('Tak dapat kongsi. Guna butang Salin.'); }
+  }
+
+  // Dialog kongsi umum: lihat mesej, kemudian Kongsi (gambar + teks), Teks sahaja, Salin atau WhatsApp terus.
+  // bila() dipanggil sebaik pengguna memilih kongsi (janji navigator.share() di Android tidak boleh dipercayai).
+  function dialogKongsi(o) {
+    let failSedia = null;
+    const sedia = (o.dapatFail ? o.dapatFail() : Promise.resolve([])).then((f) => { failSedia = f; return f; }, () => { failSedia = []; return []; });
+    borang({
+      tajuk: o.tajuk,
+      html: '<pre class="pratonton" translate="no">' + esc(o.teks) + '</pre>' + (o.nota ? '<p class="nota">' + esc(o.nota) + '</p>' : '') +
+        '<div class="aksi-kongsi"><button class="btn" type="button" data-dk="teks">Teks sahaja</button><button class="btn" type="button" data-dk="salin">Salin</button>' +
+        (o.tel ? '<button class="btn" type="button" data-dk="wa">' + IKON_WA + 'WhatsApp</button>' : '') + '</div>',
+      simpan: 'Kongsi',
+      lepas: (f) => {
+        f.querySelectorAll('[data-dk]').forEach((b) => b.addEventListener('click', async () => {
+          tutup($('dlgForm'));
+          const a = b.dataset.dk;
+          if (a === 'salin') {
+            try { await navigator.clipboard.writeText(o.teks); toast('Mesej disalin. Tampal dalam chat.'); if (o.bila) o.bila(); } catch (e) { toast('Tak dapat salin.'); }
+          } else if (a === 'wa') { if (o.bila) o.bila(); bukaWa(o.tel, o.teks); }
+          else { if (o.bila) o.bila(); await kongsiSistem(o.teks, []); }
+        }));
+      },
+      hantar() {
+        (async () => {
+          const fail = failSedia || await sedia;
+          if (o.bila) o.bila();
+          await kongsiSistem(o.teks, fail);
+        })();
+        return '';
+      },
+    });
+  }
+
+  function kumpulOrderPelanggan(o) {
+    const m = new Map();
+    itemOrder(o).filter((it) => it.kat === 'jual').sort(urut).forEach((it) => {
+      const k = kunciOrang(it.orang);
+      if (!m.has(k)) m.set(k, { k, orang: it.orang, its: [] });
+      m.get(k).its.push(it);
+    });
+    return [...m.values()];
+  }
+  function statusBayarPel(its) {
+    const harga = bulat(its.reduce((j, it) => j + (Number(it.harga) || 0), 0));
+    const bayar = bulat(its.reduce((j, it) => j + dibayar(it), 0));
+    const bk = bakiPositif(its);
+    return { harga, bayar, baki: bk, jenis: !harga ? 'tiada' : bk <= 0 ? 'lunas' : bayar > 0 ? 'depo' : 'belum' };
+  }
+  function teksOrder(p, jenis) {
+    const st = statusBayarPel(p.its);
+    let t = 'Salam Bang ' + p.orang + '.\n\nBarang dah diorder:\n' + p.its.map((it) => '- ' + labelItem(it)).join('\n') + '\n\n';
+    if (jenis === 'lunas') t += 'Bayaran dah lengkap, terima kasih. Saya maklumkan lagi bila barang telah sampai.';
+    else if (jenis === 'depo') t += 'Deposit ' + rm(st.bayar) + ' diterima. Baki lagi ' + rm(st.baki) + '.\n\nTerima kasih.';
+    else if (jenis === 'belum') t += 'Sila buat bayaran ' + rm(st.baki) + '.\n\nTerima kasih.';
+    else t += 'Bayaran ' + rm(st.baki) + ' boleh dilunaskan bila sudah bersedia.\n\nTerima kasih.';
+    return t;
+  }
+
+  let maklumOrderId = null;
+  function bukaMaklumOrder(id) {
+    maklumOrderId = id;
+    panelLukis = paparMaklumOrder;
+    paparMaklumOrder();
+    buka($('dlgPanel'));
+  }
+  function paparMaklumOrder() {
+    const o = cariOrder(maklumOrderId);
+    if (!o) { tutup($('dlgPanel')); return; }
+    const CIP = { lunas: ['Lunas', 'st-lunas'], depo: ['Deposit', 'st-depo'], belum: ['Belum bayar', 'st-belum'], tiada: ['Tiada harga', 'st-tiada'] };
+    let html = '<h2>Maklumkan order dibuat</h2><p class="nota">' + esc(labelOrder(o)) + '. Satu mesej bagi setiap pelanggan.</p>';
+    const sen = kumpulOrderPelanggan(o);
+    if (!sen.length) html += '<p class="kosong">Tiada pelanggan dalam order ini.</p>';
+    sen.forEach((p) => {
+      const st = statusBayarPel(p.its);
+      const sudah = p.its.every((it) => it.maklumOrder);
+      const qr = st.jenis !== 'lunas' && st.jenis !== 'tiada' && !tetapKunci(p.orang);
+      const btn = (jenis, label, kelas) => '<button type="button" class="btn kecil' + (kelas ? ' ' + kelas : '') + '" data-mo="' + jenis + '" data-k="' + esc(p.k) + '">' + label + '</button>';
+      let b = '';
+      if (st.jenis === 'lunas' || st.jenis === 'depo') b = btn(st.jenis, 'Kongsi', sudah ? '' : 'utama');
+      else if (st.jenis === 'belum') b = btn('belum', 'Belum bayar', sudah ? '' : 'utama') + btn('tangguh', 'Minta tangguh');
+      else b = '<span class="nota">Isi harga item dahulu.</span>';
+      html += '<div class="tw-org-baris"><div class="tw-org-atas"><b>' + esc(p.orang) + '</b>' +
+        '<span class="pil ' + CIP[st.jenis][1] + '">' + CIP[st.jenis][0] + (st.jenis === 'depo' ? ' ' + rm(st.bayar) : '') + '</span>' +
+        (qr ? '<span class="pil st-tiada">+ QR</span>' : '') + (sudah ? '<span class="pil st-lunas">✓ Dimaklumkan</span>' : '') + '</div>' +
+        '<div class="baris-btn">' + b + '</div>' +
+        (qr && !data.qr ? '<p class="nota">Belum ada QR. Tambah dalam Tetapan, Cara bayar.</p>' : '') + '</div>';
+    });
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
+    $('panelIsi').innerHTML = html;
+  }
+  $('panelIsi').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mo]');
+    if (!b) return;
+    const o = cariOrder(maklumOrderId);
+    const p = o && kumpulOrderPelanggan(o).find((x) => x.k === b.dataset.k);
+    if (!p) return;
+    const st = statusBayarPel(p.its);
+    const qr = st.jenis !== 'lunas' && !tetapKunci(p.orang) && data.qr;
+    dialogKongsi({
+      tajuk: 'Kongsi kepada ' + p.orang,
+      teks: teksOrder(p, b.dataset.mo),
+      tel: (p.its.find((it) => it.tel) || {}).tel || '',
+      nota: qr ? 'Gambar QR dihantar bersama mesej.' : '',
+      dapatFail: qr ? () => failDariRef(data.qr, 'qr') : null,
+      bila: () => ubah(() => { p.its.forEach((it) => { const x = cariItem(it.id); if (x) x.maklumOrder = Date.now(); }); }),
+    });
+  });
+
+  /* ---------- Tetapan: cara bayar ---------- */
+
+  function bukaCaraBayar() {
+    panelLukis = paparCaraBayar;
+    paparCaraBayar();
+    buka($('dlgPanel'));
+  }
+  function paparCaraBayar() {
+    let html = '<h2>Cara bayar</h2><p class="nota">Gambar QR dihantar bersama mesej bayaran kepada pelanggan yang bukan tetap. Pelanggan tetap tidak dapat QR atau maklumat bank.</p>';
+    html += '<div class="cb-qr">' + (data.qr && srcGambar(data.qr) ? '<img src="' + esc(srcGambar(data.qr)) + '" alt="QR bayaran">' : '<p class="kosong">Belum ada QR.</p>') + '</div>';
+    html += '<div class="baris-btn"><label class="btn kecil utama"><input type="file" accept="image/*" data-cb-fail hidden>' + (data.qr ? 'Tukar QR' : '+ QR bayaran') + '</label>' +
+      (data.qr ? '<button type="button" class="btn kecil bahaya" data-cb-buang>Buang</button>' : '') + '</div>';
+    html += '<h3>Pelanggan tetap</h3><p class="nota">Tanda pelanggan yang tidak perlu QR.</p>';
+    html += senaraiPelanggan().map(([k, n]) => '<label class="tanda"><input type="checkbox" data-cb-tetap="' + esc(k) + '"' + (tetapKunci(k) ? ' checked' : '') + '> ' + esc(n) + '</label>').join('') || '<p class="kosong">Belum ada pelanggan.</p>';
+    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
+    $('panelIsi').innerHTML = html;
+  }
+  $('panelIsi').addEventListener('change', async (e) => {
+    if (e.target.matches('[data-cb-fail]')) {
+      const fail = e.target.files && e.target.files[0];
+      if (!fail) return;
+      if (fail.size > 8 * 1048576) { toast('Gambar terlalu besar (had 8 MB).'); return; }
+      try {
+        const ref = await simpanBlob(fail); // asal, tidak dikecilkan supaya QR kekal boleh diimbas
+        ubah(() => { data.qr = ref; }, 'QR bayaran disimpan.');
+      } catch (err) { toast('Gambar tidak dapat disimpan.'); }
+    } else if (e.target.matches('[data-cb-tetap]')) {
+      const k = kunciOrang(e.target.dataset.cbTetap);
+      ubah(() => { data.tetap = e.target.checked ? [...new Set([...data.tetap, k])] : data.tetap.filter((x) => x !== k); });
+    }
+  });
+  $('panelIsi').addEventListener('click', (e) => {
+    if (e.target.closest('[data-cb-buang]')) ubah(() => { data.qr = ''; }, 'QR bayaran dibuang.');
+  });
+  $('btnCaraBayar').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaCaraBayar, 0); });
   $('bannerSale').addEventListener('click', bukaSale);
   setInterval(() => {
     paparBannerSale();

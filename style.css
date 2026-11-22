@@ -1478,3 +1478,10 @@ button.banner-sale[hidden] { display: none; }
 .tw-caj input { width: 4.6em; }
 .tw-tapis:focus, .tw-caj input:focus { outline: 2px solid var(--utama); outline-offset: 0; border-color: transparent; }
 .dua > .btn.kecil { align-self: flex-end; flex: 0 0 auto; margin-bottom: 2px; }
+
+/* ---------- Maklumkan pelanggan ---------- */
+.banner-drop { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--depo-lembut); color: var(--depo-teks); font-weight: 700; font-size: .9rem; }
+.amaran-baki { margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--belum-lembut); color: var(--belum-teks); font-weight: 600; font-size: .9rem; display: flex; flex-direction: column; gap: 8px; }
+.cb-qr { margin: 8px 0; }
+.cb-qr img { max-width: min(100%, 260px); border-radius: 12px; display: block; background: #fff; }
+.toast button + button { margin-left: 2px; }
