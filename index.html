@@ -71,15 +71,15 @@ try {
     </header>
 
     <nav class="tab" id="tab" role="tablist" aria-label="Peringkat">
+      <button type="button" role="tab" data-kat="sale">Sales <span class="kira" data-kira="sale"></span></button>
       <button type="button" role="tab" data-kat="beli">Tempahan <span class="kira" data-kira="beli"></span></button>
       <button type="button" role="tab" data-kat="otw">Transit <span class="kira" data-kira="otw"></span></button>
       <button type="button" role="tab" data-kat="sampai">Tiba <span class="kira" data-kira="sampai"></span></button>
       <button type="button" role="tab" data-kat="hantar">Penghantaran <span class="kira" data-kira="hantar"></span></button>
-      <button type="button" role="tab" data-kat="luar">Peribadi <span class="kira" data-kira="luar"></span></button>
     </nav>
     <div class="tajuk-arkib" id="tajukArkib" hidden>
       <button type="button" class="balik" id="btnKeluarArkib">‹ Kembali</button>
-      <b>Arkib</b><span>Barang yang telah selesai</span>
+      <b id="tajukMod">Arkib</b><span id="subMod">Barang yang telah selesai</span>
     </div>
 
     <section class="ringkas" id="ringkas" aria-live="polite"></section>
@@ -114,7 +114,7 @@ try {
     <button class="btn" id="btnTambahMula" type="button">Tempahan baru</button>
   </section>
 
-  <footer class="kaki">Diecast · v36 · 22 Nov 2026 · © 2026 · Developed by FaridAssamani</footer>
+  <footer class="kaki">Diecast · v37 · 22 Nov 2026 · © 2026 · Developed by FaridAssamani</footer>
 </div>
 
 <button class="fab" id="btnTambah" type="button" aria-label="Tambah item">
@@ -180,12 +180,11 @@ try {
   <div class="helai-isi">
     <h2>Tetapan</h2>
 
-    <h3>Bisnes</h3>
-    <div class="baris-btn">
-      <button class="btn" id="btnSale" type="button">Sale akan datang</button>
-      <button class="btn" id="btnTawaran" type="button">Tawaran</button>
-      <button class="btn" id="btnCaraBayar" type="button">Cara bayar</button>
+    <div class="baris-empat">
       <button class="btn" id="btnUntung" type="button">Untung rugi</button>
+      <button class="btn" id="btnTawaran" type="button">Tawaran</button>
+      <button class="btn" id="btnCaraBayar" type="button">QR</button>
+      <button class="btn" id="btnPeribadi" type="button">Peribadi</button>
     </div>
     <label class="medan" style="margin-top:12px">Caj tukaran kad (%) <small>(ditambah atas kadar pasaran · 0 kalau tak pasti)</small>
       <input id="tetMarkup" type="number" inputmode="decimal" min="0" max="10" step="0.1" placeholder="0">
@@ -203,12 +202,6 @@ try {
       <button type="button" data-tema="terang">Terang</button>
       <button type="button" data-tema="gelap">Gelap</button>
     </div>
-
-    <h3>Mesej WhatsApp minta baki</h3>
-    <p class="nota">Maklumat bayaran ini dimasukkan di hujung mesej. Ia disimpan dalam peranti ini dan ikut selaras Drive, bukan di GitHub.</p>
-    <label class="medan">Maklumat bayaran
-      <textarea id="tetBank" rows="3" maxlength="300" placeholder="Contoh: Sila buat bayaran kepada Maybank 5110xxxxxxx Mohd Farid Assamani."></textarea>
-    </label>
 
     <h3>Akaun Google · telefon dan PC</h3>
     <p class="nota" id="selarasNota"></p>
@@ -230,7 +223,7 @@ try {
     <div class="aksi-bawah">
       <button class="btn utama" type="button" id="menuTutup">Tutup</button>
     </div>
-    <p class="kaki dalam">Diecast · v36 · 22 Nov 2026 · © 2026 · Developed by FaridAssamani</p>
+    <p class="kaki dalam">Diecast · v37 · 22 Nov 2026 · © 2026 · Developed by FaridAssamani</p>
   </div>
 </dialog>
 

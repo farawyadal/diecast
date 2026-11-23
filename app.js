@@ -38,7 +38,7 @@
   const KUNCI_TETAPAN = 'diecast-tetapan';
 
   const TAB = {
-    beli: 'Tempahan', otw: 'Transit', sampai: 'Tiba', hantar: 'Penghantaran', luar: 'Peribadi', arkib: 'Arkib',
+    sale: 'Sales', beli: 'Tempahan', otw: 'Transit', sampai: 'Tiba', hantar: 'Penghantaran', luar: 'Peribadi', arkib: 'Arkib',
   };
   const PERINGKAT = {
     beli: 'Dalam tempahan', ship: 'Dalam perjalanan ke gudang', hub: 'Di gudang', keHK: 'Dalam perjalanan ke hub',
@@ -324,6 +324,7 @@
       nama: String(x.nama).trim().slice(0, 120),
       harga: nomborAtauNull(x.harga) || 0,
       berat: nomborAtauNull(x.berat) || 0,
+      saleId: String(x.saleId || ''),
       gambar: (Array.isArray(x.gambar) ? x.gambar : []).map((g) => String(g || '')).filter(Boolean).slice(0, 3),
       dibuat: Number(x.dibuat) || Date.now(),
       penerima: (Array.isArray(x.penerima) ? x.penerima : []).map((p) => {
@@ -656,15 +657,18 @@
   function itemTab(tab) { return data.items.filter((it) => tabItem(it) === tab); }
 
   function paparTab() {
-    const arkib = tetapan.tab === 'arkib';
+    const arkib = tetapan.tab === 'arkib' || tetapan.tab === 'luar';
     $('tab').hidden = arkib;
     $('tajukArkib').hidden = !arkib;
+    $('tajukMod').textContent = tetapan.tab === 'luar' ? 'Peribadi' : 'Arkib';
+    $('subMod').textContent = tetapan.tab === 'luar' ? 'Barang yang dibeli daripada pihak lain' : 'Barang yang telah selesai';
     document.querySelectorAll('#tab button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.kat === tetapan.tab)));
-    ['beli', 'otw', 'sampai', 'hantar', 'luar'].forEach((k) => {
+    ['beli', 'otw', 'sampai', 'hantar'].forEach((k) => {
       document.querySelector('[data-kira="' + k + '"]').textContent = itemTab(k).length;
     });
+    document.querySelector('[data-kira="sale"]').textContent = saleAkanDatang().length;
     document.querySelectorAll('#cip button').forEach((b) => b.classList.toggle('aktif', b.dataset.status === tetapan.status));
-    const fab = { beli: 'Tempahan baru', otw: 'Consolidate', luar: 'Tambah item' }[tetapan.tab];
+    const fab = { sale: 'Sale baru', beli: 'Tempahan baru', otw: 'Consolidate', luar: 'Tambah item' }[tetapan.tab];
     $('btnTambah').hidden = !fab;
     if (fab) { $('fabTeks').textContent = fab; $('btnTambah').setAttribute('aria-label', fab); }
   }
@@ -980,11 +984,12 @@
     $('bannerLogin').hidden = selaras.aktif || !!tetapan.tutupBanner || !data.items.length;
     paparBannerSale();
     const tab = tetapan.tab;
-    const ada = data.items.length > 0 || data.orders.length > 0;
+    const ada = data.items.length > 0 || data.orders.length > 0 || data.sale.length > 0 || data.tawaran.length > 0;
     $('kosongMula').hidden = ada;
-    $('tapisBar').hidden = !ada;
-    $('ringkas').hidden = !ada;
+    $('tapisBar').hidden = !ada || tab === 'sale';
+    $('ringkas').hidden = !ada || tab === 'sale';
     if (!ada) { $('tab').hidden = true; $('senarai').innerHTML = ''; return; }
+    if (tab === 'sale') { $('senarai').innerHTML = htmlTabSale(); return; }
 
     let semua = itemTab(tab).filter(padanCari);
     let arkibT = null;
@@ -1220,6 +1225,7 @@
     if (!b) return;
     tetapan.tab = b.dataset.kat;
     simpanTetapan();
+    if (tetapan.tab === 'sale') muatGis().catch(() => {});
     papar();
     window.scrollTo({ top: 0 });
   });
@@ -3012,6 +3018,7 @@
     if (tetapan.tab === 'beli') borangTempahan();
     else if (tetapan.tab === 'otw') borangKotak(null, data.items.filter((it) => peringkat(it) === 'hk').map((it) => it.id));
     else if (tetapan.tab === 'luar') borangItem(null, { kat: 'luar' });
+    else if (tetapan.tab === 'sale') borangSale(null);
   });
   $('btnTambahMula').addEventListener('click', borangTempahan);
 
@@ -3172,7 +3179,6 @@
     const tetap = tetapKunci(orang);
     let teks = 'Salam Bang ' + orang + '.\n\n' + (sampai ? 'Barang pre-order telah tiba. ' : '') + 'Berikut baki bayaran:\n' + barisBaki(ada) +
       (ada.length > 1 ? '\n\nJumlah baki: ' + rm(jumlah) : '') + '\n';
-    if (data.bank && !tetap) teks += '\n' + data.bank.trim() + '\n';
     teks += '\nTerima kasih.';
     dialogKongsi({
       tajuk: 'Kongsi baki kepada ' + orang, teks, tel: (ada.find((it) => it.tel) || {}).tel || '',
@@ -3198,7 +3204,6 @@
     } else teks += 'Barang ' + (h.dipos ? 'telah' : 'akan') + ' dihantar sendiri:\n' + baris + '\n';
     if (bk > 0) {
       teks += '\nBaki bayaran' + (ramai ? ' (semua dalam bungkusan ini)' : '') + ': ' + rm(bk) + '\n';
-      if (data.bank && !tetapKunci(h.orang.split(' + ')[0])) teks += data.bank.trim() + '\n';
     }
     teks += '\nSila maklumkan apabila barang telah diterima. Terima kasih.';
     return teks;
@@ -3377,21 +3382,26 @@
     el.querySelector('span').textContent = labelSale(s) + ' · ' + masaZon(s.t, 'MY', true);
   }
 
-  function bukaSale() {
-    panelLukis = paparSale;
-    paparSale();
-    buka($('dlgPanel'));
-    muatGis().catch(() => {});
-  }
-
+  function tawaranSale(s) { return data.tawaran.filter((t) => t.saleId === s.id); }
   function htmlSale(s, lepas) {
     const baki = bakiMasa(s.t);
+    const tws = tawaranSale(s);
+    const k = { deal: 0, hantar: 0, baru: 0, tak: 0, jumlah: 0 };
+    tws.forEach((t) => t.penerima.forEach((p) => { k[p.status]++; k.jumlah++; }));
+    const siap = [];
+    tws.forEach((t) => t.penerima.forEach((p) => { const it = p.itemId && cariItem(p.itemId); if (p.status === 'deal' && it && !it.orderId && !it.arkib) siap.push(it.id); }));
     return '<div class="sale-kad' + (lepas ? ' lepas' : '') + '">' +
       '<div class="sale-atas"><b>' + (s.jenis ? '<span class="jenis">' + esc(s.jenis) + '</span>' : '') + esc(s.nama) + '</b>' +
       (lepas ? '' : '<span class="pil ' + (s.t - Date.now() < 86400000 ? 'st-belum' : 'st-aku') + '">' + (baki ? esc(baki) : 'Sedang berlangsung') + '</span>') + '</div>' +
       '<small>' + esc(masaZon(s.t, 'MY')) + (s.zon !== 'MY' ? ' · ' + esc(masaZon(s.t, s.zon, true)) + ' ' + ZON[s.zon].pendek : '') + '</small>' +
       (s.catatan ? '<div class="kad-catatan">' + esc(s.catatan) + '</div>' : '') +
+      (k.jumlah ? '<div class="sale-tawar"><span>Ditawar kepada ' + k.jumlah + '</span>' +
+        (k.deal ? '<span class="pil st-lunas">' + k.deal + ' Deal</span>' : '') +
+        (k.hantar ? '<span class="pil st-depo">' + k.hantar + ' belum jawab</span>' : '') +
+        (k.baru ? '<span class="pil st-tiada">' + k.baru + ' belum dihantar</span>' : '') + '</div>' : '') +
       '<div class="baris-btn">' +
+      (lepas ? '' : (k.jumlah ? '<button type="button" class="btn kecil" data-sale-pel="' + esc(s.id) + '">Pelanggan</button>' : '<button type="button" class="btn kecil utama" data-sale-tawar="' + esc(s.id) + '">Tawar kepada pelanggan</button>')) +
+      (siap.length ? '<button type="button" class="btn kecil utama" data-sale-beli="' + esc(s.id) + '">Dah beli</button>' : '') +
       (lepas ? '' : '<button type="button" class="btn kecil' + (s.eventId ? '' : ' utama') + '" data-sale-kal="' + esc(s.id) + '">' + (s.eventId ? '✓ Dalam kalendar' : 'Tambah ke kalendar') + '</button>') +
       '<button type="button" class="btn kecil" data-sale-tempah="' + esc(s.id) + '">Buat tempahan</button>' +
       (s.pautan ? '<a class="btn kecil" href="' + esc(s.pautan) + '" target="_blank" rel="noopener">Buka ↗</a>' : '') +
@@ -3399,15 +3409,13 @@
       '</div></div>';
   }
 
-  function paparSale() {
+  function htmlTabSale() {
     const datang = saleAkanDatang();
     const lepas = data.sale.filter((s) => s.t <= Date.now() - 3600000).sort((a, b) => b.t - a.t).slice(0, 10);
-    let html = '<h2>Sale akan datang</h2><p class="nota">Masa dalam waktu Malaysia. Tambah ke Google Calendar untuk peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.</p>' +
-      '<button type="button" class="btn utama penuh-lebar" data-sale-baru="1">+ Sale baru</button>';
-    html += datang.length ? datang.map((s) => htmlSale(s)).join('') : '<p class="kosong">Tiada sale akan datang.</p>';
+    let html = '<p class="nota">Masa dalam waktu Malaysia. Tambah ke Google Calendar untuk peringatan ' + PERINGATAN.join(' dan ') + ' minit sebelum sale.</p>';
+    html += datang.length ? datang.map((s) => htmlSale(s)).join('') : '<p class="kosong">Tiada sale akan datang. Tekan Sale baru.</p>';
     if (lepas.length) html += '<details class="sale-lepas"><summary>Sale lepas (' + lepas.length + ')</summary>' + lepas.map((s) => htmlSale(s, true)).join('') + '</details>';
-    html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
-    $('panelIsi').innerHTML = html;
+    return html;
   }
 
   function borangSale(s) {
@@ -3449,7 +3457,7 @@
         ubah(() => {
           const i = data.sale.findIndex((y) => y.id === x.id);
           if (i >= 0) data.sale[i] = x; else data.sale.push(x);
-        }, baru ? 'Sale disimpan.' : 'Sale dikemas kini.');
+        }, baru ? 'Sale disimpan.' : 'Sale dikemas kini.', baru ? { label: 'Tawar', fn: () => borangTawaran(null, { jenis: x.jenis, nama: x.nama, saleId: x.id }) } : null);
         if (f.kal.checked && x.t > Date.now()) kalendarSale(x.id);
         return '';
       },
@@ -3642,21 +3650,30 @@
       const sebab = e.kod === 'popup_closed' || e.kod === 'access_denied' || e.kod === 'kal_tolak' ? 'Kebenaran Google Calendar tidak diberi.'
         : e.kod === 403 ? 'Google Calendar API belum diaktifkan dalam projek Google Cloud anda.'
           : 'Tidak dapat sambung ke Google Calendar.';
-      toast(sebab + ' Sale disimpan dalam apps; tambah ke kalendar kemudian dari Sale akan datang.');
+      toast(sebab + ' Sale disimpan dalam apps; tambah ke kalendar kemudian dari tab Sales.');
     }
   }
 
-  $('panelIsi').addEventListener('click', (e) => {
+  function klikSale(e) {
     const t = (n) => e.target.closest('[data-' + n + ']');
     if (t('sale-baru')) borangSale(null);
+    else if (t('sale-pel')) bukaTawaran(t('sale-pel').dataset.salePel);
+    else if (t('sale-tawar')) { const s = cariSale(t('sale-tawar').dataset.saleTawar); if (s) borangTawaran(null, { jenis: s.jenis, nama: s.nama, saleId: s.id }); }
+    else if (t('sale-beli')) {
+      const s = cariSale(t('sale-beli').dataset.saleBeli);
+      const ids = [];
+      if (s) tawaranSale(s).forEach((tw) => tw.penerima.forEach((p) => { const it = p.itemId && cariItem(p.itemId); if (p.status === 'deal' && it && !it.orderId && !it.arkib) ids.push(it.id); }));
+      if (ids.length) borangOrderBaru(ids);
+    }
     else if (t('sale-edit')) { const s = cariSale(t('sale-edit').dataset.saleEdit); if (s) borangSale(s); }
     else if (t('sale-kal')) kalendarSale(t('sale-kal').dataset.saleKal);
     else if (t('sale-tempah')) {
       const s = cariSale(t('sale-tempah').dataset.saleTempah);
       if (s) borangTempahan({ jenis: s.jenis, nama: s.nama });
     }
-  });
-  $('btnSale').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaSale, 0); });
+  }
+  $('panelIsi').addEventListener('click', klikSale);
+  $('senarai').addEventListener('click', klikSale);
 
   /* ---------- Tawaran kepada pelanggan ---------- */
   /*
@@ -3678,7 +3695,9 @@
     return [...m].sort((a, b) => a[1].localeCompare(b[1]));
   }
 
-  function bukaTawaran() {
+  let twSale = null;
+  function bukaTawaran(saleId) {
+    twSale = typeof saleId === 'string' ? saleId : null;
     panelLukis = paparTawaran;
     paparTawaran();
     buka($('dlgPanel'));
@@ -3712,9 +3731,10 @@
   }
 
   function paparTawaran() {
-    const senarai = data.tawaran.slice().sort((a, b) => b.dibuat - a.dibuat);
-    let html = '<h2>Tawaran</h2><p class="nota">Muat naik gambar dan tetapkan harga, kemudian kongsi kepada setiap pelanggan. Pelanggan balas DEAL, dan kau tanda di sini.</p>' +
-      '<button type="button" class="btn utama penuh-lebar" data-tw-aksi="baru">+ Tawaran baru</button>';
+    const sl = twSale ? cariSale(twSale) : null;
+    const senarai = data.tawaran.filter((t) => !sl || t.saleId === sl.id).sort((a, b) => b.dibuat - a.dibuat);
+    let html = (sl ? '<h2>Tawaran: ' + esc(labelSale(sl)) + '</h2><p class="nota">Pelanggan yang ditawar untuk sale ini.</p><div class="baris-btn"><button type="button" class="btn kecil" data-tw-aksi="semua">Semua tawaran</button><button type="button" class="btn kecil utama" data-tw-aksi="baruSale">+ Tawaran lagi</button></div>' : '<h2>Tawaran</h2><p class="nota">Muat naik gambar dan tetapkan harga, kemudian kongsi kepada setiap pelanggan. Pelanggan balas DEAL, dan kau tanda di sini.</p>' +
+      '<button type="button" class="btn utama penuh-lebar" data-tw-aksi="baru">+ Tawaran baru</button>');
     html += senarai.length ? senarai.slice(0, 8).map(htmlTawaran).join('') : '<p class="kosong">Belum ada tawaran.</p>';
     if (senarai.length > 8) html += '<details class="sale-lepas"><summary>Tawaran lama (' + (senarai.length - 8) + ')</summary>' + senarai.slice(8).map(htmlTawaran).join('') + '</details>';
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-tutup="1">Tutup</button></div>';
@@ -3743,16 +3763,17 @@
     });
   }
 
-  function borangTawaran(t) {
+  function borangTawaran(t, awal) {
     const baru = !t;
+    awal = awal || {};
     isiDatalistOrang();
     twGambar = t ? t.gambar.slice() : [];
     const akhir = data.tawaran.slice().sort((a, b) => b.dibuat - a.dibuat)[0];
     const tanda = new Set(baru && akhir ? akhir.penerima.map((p) => kunciOrang(p.orang)) : []);
     borang({
       tajuk: baru ? 'Tawaran baru' : 'Edit tawaran',
-      html: '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(t ? t.jenis : '') + '"></label>' +
-        '<label class="medan">Barang<input name="nama" maxlength="120" data-fokus placeholder="Contoh: Nissan Skyline GT-R" value="' + esc(t ? t.nama : '') + '"></label></div>' +
+      html: '<div class="dua"><label class="medan kecil">Jenis<input name="jenis" list="senaraiJenis" maxlength="20" placeholder="RLC" value="' + esc(t ? t.jenis : awal.jenis || '') + '"></label>' +
+        '<label class="medan">Barang<input name="nama" maxlength="120" data-fokus placeholder="Contoh: Nissan Skyline GT-R" value="' + esc(t ? t.nama : awal.nama || '') + '"></label></div>' +
         '<div class="dua"><label class="medan">Harga asas (RM)<input name="harga" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(t ? t.harga : '') + '"></label>' +
         '<label class="medan">Barang berat, tambah (RM)<input name="berat" type="number" inputmode="decimal" min="0" step="0.01" value="' + esc(t && t.berat ? t.berat : '') + '"></label></div>' +
         '<h3>Gambar <small>(1 hingga 3)</small></h3>' + htmlGambarTw() +
@@ -3782,7 +3803,7 @@
         const pilih = baris.filter((b) => b.tanda);
         if (baru && !pilih.length) return 'Tanda sekurang-kurangnya seorang pelanggan.';
         const x = bersihTawaran(Object.assign({}, t || {}, {
-          jenis: f.jenis.value.trim(), nama, harga, berat, gambar: twGambar.slice(),
+          jenis: f.jenis.value.trim(), nama, harga, berat, gambar: twGambar.slice(), saleId: t ? t.saleId : awal.saleId || '',
           penerima: t ? t.penerima : pilih.map((b) => ({ orang: b.nama, harga: bulat(harga + berat + b.caj), status: 'baru' })),
         }));
         ubah(() => {
@@ -3791,7 +3812,7 @@
           const i = data.tawaran.findIndex((y) => y.id === x.id);
           if (i >= 0) data.tawaran[i] = x; else data.tawaran.push(x);
         }, baru ? 'Tawaran disimpan. Tekan Kongsi pada setiap pelanggan.' : 'Tawaran dikemas kini.');
-        if (!$('dlgPanel').open || panelLukis !== paparTawaran) bukaTawaran();
+        if (!$('dlgPanel').open || panelLukis !== paparTawaran) bukaTawaran(x.saleId || null);
         return '';
       },
     });
@@ -3973,6 +3994,8 @@
     if (!b) return;
     const a = b.dataset.twAksi;
     if (a === 'baru') { borangTawaran(null); return; }
+    if (a === 'semua') { bukaTawaran(); return; }
+    if (a === 'baruSale') { const sl = cariSale(twSale); borangTawaran(null, sl ? { jenis: sl.jenis, nama: sl.nama, saleId: sl.id } : null); return; }
     const t = cariTawaran(b.dataset.tw);
     if (!t) return;
     if (a === 'edit') { borangTawaran(t); return; }
@@ -4147,7 +4170,7 @@
         '<span class="pil ' + CIP[st.jenis][1] + '">' + CIP[st.jenis][0] + (st.jenis === 'depo' ? ' ' + rm(st.bayar) : '') + '</span>' +
         (qr ? '<span class="pil st-tiada">+ QR</span>' : '') + (sudah ? '<span class="pil st-lunas">✓ Dimaklumkan</span>' : '') + (ingat ? '<span class="pil st-depo">Diingatkan</span>' : '') + '</div>' +
         '<div class="baris-btn">' + b + '</div>' +
-        (qr && !data.qr ? '<p class="nota">Belum ada QR. Tambah dalam Tetapan, Cara bayar.</p>' : '') + '</div>';
+        (qr && !data.qr ? '<p class="nota">Belum ada QR. Tambah dalam Tetapan, QR.</p>' : '') + '</div>';
     });
     html += '<div class="aksi-bawah"><button class="btn" type="button" data-mk-tutup="1">Tutup</button></div>';
     $('panelIsi').innerHTML = html;
@@ -4171,7 +4194,7 @@
     buka($('dlgPanel'));
   }
   function paparCaraBayar() {
-    let html = '<h2>Cara bayar</h2><p class="nota">Gambar QR dihantar bersama mesej bayaran kepada pelanggan yang bukan tetap. Pelanggan tetap tidak dapat QR atau maklumat bank.</p>';
+    let html = '<h2>QR</h2><p class="nota">Gambar QR dihantar bersama mesej bayaran kepada pelanggan yang bukan tetap. Pelanggan tetap tidak dapat QR.</p>';
     html += '<div class="cb-qr">' + (data.qr && srcGambar(data.qr) ? '<img src="' + esc(srcGambar(data.qr)) + '" alt="QR bayaran">' : '<p class="kosong">Belum ada QR.</p>') + '</div>';
     html += '<div class="baris-btn"><label class="btn kecil utama"><input type="file" accept="image/*" data-cb-fail hidden>' + (data.qr ? 'Tukar QR' : '+ QR bayaran') + '</label>' +
       (data.qr ? '<button type="button" class="btn kecil bahaya" data-cb-buang>Buang</button>' : '') + '</div>';
@@ -4197,17 +4220,17 @@
   $('panelIsi').addEventListener('click', (e) => {
     if (e.target.closest('[data-cb-buang]')) ubah(() => { data.qr = ''; }, 'QR bayaran dibuang.');
   });
+  $('btnPeribadi').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(() => { tetapan.tab = 'luar'; simpanTetapan(); papar(); window.scrollTo({ top: 0 }); }, 0); });
   $('btnCaraBayar').addEventListener('click', () => { tutup($('dlgMenu')); setTimeout(bukaCaraBayar, 0); });
-  $('bannerSale').addEventListener('click', bukaSale);
+  $('bannerSale').addEventListener('click', () => { tetapan.tab = 'sale'; simpanTetapan(); papar(); window.scrollTo({ top: 0 }); });
   setInterval(() => {
     paparBannerSale();
-    if ($('dlgPanel').open && panelLukis === paparSale) paparSale();
+    if (tetapan.tab === 'sale') papar();
   }, 60000);
 
   /* ---------- Tetapan ---------- */
 
   $('btnMenu').addEventListener('click', () => {
-    $('tetBank').value = data.bank || '';
     $('tetMarkup').value = data.markup || '';
     gunaTema();
     paparTetapanSelaras();
@@ -4229,11 +4252,6 @@
     e.target.value = data.markup || '';
     simpan();
     toast(data.markup ? 'Kadar pasaran akan ditambah ' + data.markup + '% untuk order baru.' : 'Caj kad dibuang.');
-  });
-  $('tetBank').addEventListener('change', (e) => {
-    data.bank = e.target.value.trim();
-    simpan();
-    toast('Maklumat bayaran disimpan.');
   });
 
   /* ---------- Simpan salinan dan import ---------- */

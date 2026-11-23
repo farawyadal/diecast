@@ -123,3 +123,10 @@ Gambar disimpan berasingan daripada data utama: dalam IndexedDB peranti, dan sat
 - Kad item (jualan) ada butang **Maklumkan pelanggan**. Bila dah dimaklumkan tapi baki masih ada, butang utama jadi **Peringatan bayaran**, dengan pilihan **Maklumkan semula**.
 - Butang "WhatsApp minta baki" pada kad item diganti.
 - Pembetulan: menu Notify dalam Order CM kini keluar di atas butiran order (sebelum ini tersorok di belakang). Selepas Tutup, kembali ke senarai Order CM.
+
+### v37: tab Sales, Tetapan lebih kemas
+- Tab **Sales** di depan (skrin awal kekal Tempahan). Kad sale tunjuk tawaran kepada pelanggan (Deal, belum jawab), butang **Tawar kepada pelanggan**, **Pelanggan** dan **Dah beli** (buka Order CM dengan item Deal).
+- Selepas simpan sale baru, toast ada butang **Tawar**.
+- Peribadi pindah ke Tetapan dan dibuka seperti Arkib.
+- Tetapan: bahagian Bisnes dibuang, satu baris: Untung rugi, Tawaran, QR, Peribadi. "Cara bayar" jadi "QR".
+- Tetapan mesej minta baki dibuang. Teks bank tak lagi ditambah dalam mesej, QR sahaja untuk pelanggan bukan tetap.

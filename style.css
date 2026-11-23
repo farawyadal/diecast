@@ -1485,3 +1485,8 @@ button.banner-sale[hidden] { display: none; }
 .cb-qr { margin: 8px 0; }
 .cb-qr img { max-width: min(100%, 260px); border-radius: 12px; display: block; background: #fff; }
 .toast button + button { margin-left: 2px; }
+
+/* v37: empat butang satu baris dalam Tetapan, ringkasan tawaran pada kad sale */
+.baris-empat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.baris-empat .btn { padding: 10px 2px; font-size: 0.78rem; min-width: 0; }
+.sale-tawar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 0.85rem; }
